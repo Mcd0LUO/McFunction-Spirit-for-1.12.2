@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HelperConfig",
+  "description": "Minecraft Function Helper Configuration",
+  "type": "object",
+  "properties": {
+    "ignore-function-directory": {
+      "type": "array",
+      "description": "需要忽略的函数目录列表",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ignore-advancement-directory": {
+      "type": "array",
+      "description": "需要忽略的进度目录列表",
+      "items": {
+        "type": "string"
+      }
+    },
+    "space-auto-add": {
+      "type": "boolean",
+      "description": "是否在命令补全后自动添加空格",
+      "default": true
+    },
+    "check-data-exists": {
+      "type": "boolean",
+      "description": "是否检查数据[记分板|函数]是否存在",
+      "default": true
+    },
+    "check-scoreboard-length": {
+      "type": "boolean",
+      "description": "是否检查记分板长度",
+      "default": true
+    }
+  },
+  "required": [
+    "ignore-function-directory",
+    "ignore-advancement-directory",
+    "space-auto-add",
+    "check-data-exists",
+    "check-scoreboard-length"
+
+  ],
+  "additionalProperties": false
+}

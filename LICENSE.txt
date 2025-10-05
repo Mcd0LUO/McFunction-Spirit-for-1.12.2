@@ -1,0 +1,13 @@
+The Modified MIT License
+
+Copyright (c) [2025] [Mcd0_LUO]
+
+0.Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software subject to the following conditions:
+
+1.The Software and any copies thereof, including modified versions, may be used for internal business operations (including but not limited to business processing, data management, and workflow automation that support commercial activities). All other commercial uses, including but not limited to sale, lease, licensing, incorporation into commercial products/services, provision of paid services to third parties, or any use intended to generate direct or indirect monetary gain from the Software itself, are strictly prohibited without prior written permission from the copyright holder.
+
+1.Modification of the Software is permitted solely for the purpose of optimizing its use in the licensee's internal business operations, provided that such modifications are not distributed, published, or made available to any third party in any form (including electronic transmission, physical distribution, or public display) without explicit written authorization from the copyright holder.
+
+3.The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software, including any modified versions that are used in accordance with these terms.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

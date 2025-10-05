@@ -1,0 +1,94 @@
+# ================ 基础配置 ================
+# 配置用户名（全局生效）
+git config --global user.name "Your Name"
+# 配置邮箱（全局生效）
+git config --global user.email "your.email@example.com"
+# 查看配置信息
+git config --global --list
+
+
+# ================ 仓库初始化 ================
+# 初始化本地仓库（在当前目录创建.git文件夹）
+git init
+# 克隆远程仓库到本地
+git clone <远程仓库URL>  # 如：git clone https://github.com/username/repo.git
+
+
+# ================ 日常提交 ================
+# 查看工作区/暂存区状态
+git status
+# 添加指定文件到暂存区
+git add <文件名>  # 如：git add index.js
+# 添加所有修改到暂存区（包括新增/删除/修改）
+git add .
+# 提交暂存区到本地仓库（必填提交说明）
+git commit -m "提交说明"  # 如：git commit -m "fix: 修复登录bug"
+# 跳过暂存区，直接提交已追踪的文件（仅修改）
+git commit -am "提交说明"
+
+
+# ================ 分支操作 ================
+# 查看本地分支（当前分支前带*）
+git branch
+# 查看本地+远程分支
+git branch -a
+# 创建新分支（基于当前分支）
+git branch <分支名>  # 如：git branch feature/login
+# 创建并切换到新分支（推荐）
+git checkout -b <分支名>  # 或 git switch -c <分支名>（Git 2.23+）
+# 切换到已有分支
+git checkout <分支名>  # 或 git switch <分支名>
+# 合并指定分支到当前分支（如合并feature/login到main）
+git merge feature/login
+# 删除本地分支（需先切换到其他分支）
+git branch -d <分支名>  # 强制删除用 -D
+
+
+# ================ 远程仓库操作 ================
+# 关联远程仓库（origin为远程仓库别名）
+git remote add origin <远程仓库URL>
+# 查看远程仓库信息
+git remote -v
+# 拉取远程分支更新并合并到本地当前分支
+git pull origin <远程分支名>  # 如：git pull origin main
+# 首次推送本地分支到远程（绑定跟踪关系）
+git push -u origin <本地分支名>  # 如：git push -u origin main
+# 推送本地修改到远程（已绑定跟踪关系）
+git push
+
+
+# ================ 版本回退与撤销 ================
+# 查看提交历史（简化版）
+git log --oneline
+# 查看所有操作历史（包括已删除的提交）
+git reflog
+# 回退到指定版本（不保留后续修改，谨慎使用）
+git reset --hard <提交ID>  # 提交ID通过git log或reflog获取
+# 创建新提交抵消指定版本的修改（安全回退，保留历史）
+git revert <提交ID>
+# 撤销工作区修改（未add的文件）
+git checkout -- <文件名>  # 或 git restore <文件名>（Git 2.23+）
+# 撤销暂存区修改（已add但未commit）
+git reset HEAD <文件名>  # 或 git restore --staged <文件名>
+
+
+# ================ 临时操作 ================
+# 临时保存工作区修改（未commit的内容）
+git stash
+# 恢复最近一次stash的修改，并删除stash记录
+git stash pop
+# 查看所有stash记录
+git stash list
+# 删除所有stash记录
+git stash clear
+
+
+# ================ 其他常用 ================
+# 查看本地分支与远程分支的关联关系
+git branch -vv
+# 强制推送本地分支覆盖远程分支（谨慎使用，多人协作时禁用）
+git push -f origin <分支名>
+# 删除远程分支
+git push origin --delete <远程分支名>
+# 拉取远程分支到本地（本地无对应分支时）
+git checkout -b <本地分支名> origin/<远程分支名>

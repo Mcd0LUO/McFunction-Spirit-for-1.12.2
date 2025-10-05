@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "mcfunction-spirit",
+  "displayName": "McFunction Spirit for 1.12.2",
+  "description": "A simple Minecraft 1.12.2 function development tool that provides features such as syntax completion and function management.",
+  "repository": "https://github.com/Mcd0LUO/McFunction-Spirit-for-1.12.2",
+  "version": "1.7.2",
+  "icon": "icons/main_icon.png",
+  "publisher": "Mcd0-LUO",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "activationEvents": [
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mcfunction",
+        "aliases": [
+          "Minecraft Function",
+          "mcfunction"
+        ],
+        "extensions": [
+          ".mcfunction"
+        ],
+        "icon": {
+          "light": "icons/light.png",
+          "dark": "icons/dark.png"
+        }, 
+        "configuration": "./syntaxes/language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mcfunction",
+        "scopeName": "source.mcfunction",
+        "path": "./syntaxes/mcfunction.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "McFunction Spirit Theme",
+        "uiTheme": "vs-dark",
+        "path": "./themes/mcfunction-theme-dark.json"
+      }
+    ],
+
+
+    "commands": [
+      {
+        "command": "mcfunction.createFunctionFile",
+        "title": "新建mcfunction文件",
+        "category": "McFunction Spirit"
+      },
+      {
+        "command": "mcfunction.reloadFunction",
+        "title": "刷新函数|计分板|进度配置",
+        "category": "McFunction Spirit"
+      },
+      {
+        "command": "mcfunction.keyCreateFunctionFile",
+        "title": "快捷键新建mcfunction文件",
+        "category": "McFunction Spirit"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "mcfunction.createFunctionFile",
+          "when": "explorerResourceIsFolder",
+          "group": "4_new@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mcfunction.keyCreateFunctionFile",
+          "when": "filesExplorerFocus"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mcfunction.keyCreateFunctionFile",
+        "key": "ctrl+m",
+        "mac": "cmd+m",
+        "when": "filesExplorerFocus"
+      },
+      {
+        "command": "mcfunction.reloadFunction",
+        "key": "ctrl+r",
+        "mac": "cmd+r",
+        "when": "editorTextFocus && editorLangId == mcfunction"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "McFunction Spirit 配置",
+      "properties": {
+        "mcfunction-spirit.ignoreFunctionDirectory": {
+          "type": "array",
+          "description": "需要忽略的函数目录列表",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "mcfunction-spirit.ignoreAdvancementDirectory": {
+          "type": "array",
+          "description": "需要忽略的进度目录列表",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "mcfunction-spirit.scoreboardsNameContainer": {
+          "type": "array",
+          "description": "包含计分板定义的函数文件列表",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "mcfunction-spirit.spaceAutoAdd": {
+          "type": "boolean",
+          "description": "是否在命令补全后自动添加空格",
+          "default": true
+        },
+        "mcfunction-spirit.checkDataExists": {
+          "type": "boolean",
+          "description": "是否检查数据[记分板|函数]是否存在",
+          "default": true
+        },
+        "mcfunction-spirit.checkScoreboardLength": {
+          "type": "boolean",
+          "description": "是否检查计分板长度",
+          "default": true
+        }
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "HelperConfig.json",
+        "url": "./schemas/HelperConfig.schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.101.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,328 @@
+{
+    "$schema": "vscode://schemas/color-theme",
+    "name": "McFunction Spirit Theme", 
+    "type": "dark",
+    "colors": {
+        "actionBar.toggledBackground": "#383a49",
+        "activityBar.activeBorder": "#0078d4",
+        "activityBar.background": "#181818",
+        "activityBar.border": "#2b2b2b",
+        "activityBar.foreground": "#d7d7d7",
+        "activityBar.inactiveForeground": "#868686",
+        "activityBarBadge.background": "#0078d4",
+        "activityBarBadge.foreground": "#ffffff",
+        "badge.background": "#616161",
+        "badge.foreground": "#f8f8f8",
+        "button.background": "#0078d4",
+        "button.border": "#ffffff12",
+        "button.foreground": "#ffffff",
+        "button.hoverBackground": "#026ec1",
+        "button.secondaryBackground": "#313131",
+        "button.secondaryForeground": "#cccccc",
+        "button.secondaryHoverBackground": "#3c3c3c",
+        "chat.editedFileForeground": "#e2c08d",
+        "chat.slashCommandBackground": "#26477866",
+        "chat.slashCommandForeground": "#85b6ff",
+        "checkbox.background": "#313131",
+        "checkbox.border": "#3c3c3c",
+        "debugToolBar.background": "#181818",
+        "descriptionForeground": "#9d9d9d",
+        "dropdown.background": "#313131",
+        "dropdown.border": "#3c3c3c",
+        "dropdown.foreground": "#cccccc",
+        "dropdown.listBackground": "#1f1f1f",
+        "editor.background": "#1f1f1f",
+        "editor.findMatchBackground": "#9e6a03",
+        "editor.foreground": "#cccccc",
+        "editor.selectionHighlightBackground": "#add6ff26",
+        "editorGroup.border": "#ffffff17",
+        "editorGroupHeader.tabsBackground": "#181818",
+        "editorGroupHeader.tabsBorder": "#2b2b2b",
+        "editorGutter.addedBackground": "#2ea043",
+        "editorGutter.deletedBackground": "#f85149",
+        "editorGutter.modifiedBackground": "#0078d4",
+        "editorIndentGuide.activeBackground1": "#707070",
+        "editorIndentGuide.background1": "#404040",
+        "editorLineNumber.activeForeground": "#cccccc",
+        "editorLineNumber.foreground": "#6e7681",
+        "editorOverviewRuler.border": "#010409",
+        "editorWidget.background": "#202020",
+        "errorForeground": "#f85149",
+        "focusBorder": "#0078d4",
+        "foreground": "#cccccc",
+        "icon.foreground": "#cccccc",
+        "input.background": "#313131",
+        "input.border": "#3c3c3c",
+        "input.foreground": "#cccccc",
+        "input.placeholderForeground": "#989898",
+        "inputOption.activeBackground": "#2489db82",
+        "inputOption.activeBorder": "#2488db",
+        "keybindingLabel.foreground": "#cccccc",
+        "list.activeSelectionIconForeground": "#ffffff",
+        "list.dropBackground": "#383b3d",
+        "menu.background": "#1f1f1f",
+        "menu.border": "#454545",
+        "menu.foreground": "#cccccc",
+        "menu.selectionBackground": "#0078d4",
+        "menu.separatorBackground": "#454545",
+        "notificationCenterHeader.background": "#1f1f1f",
+        "notificationCenterHeader.foreground": "#cccccc",
+        "notifications.background": "#1f1f1f",
+        "notifications.border": "#2b2b2b",
+        "notifications.foreground": "#cccccc",
+        "panel.background": "#181818",
+        "panel.border": "#2b2b2b",
+        "panelInput.border": "#2b2b2b",
+        "panelTitle.activeBorder": "#0078d4",
+        "panelTitle.activeForeground": "#cccccc",
+        "panelTitle.inactiveForeground": "#9d9d9d",
+        "peekViewEditor.background": "#1f1f1f",
+        "peekViewEditor.matchHighlightBackground": "#bb800966",
+        "peekViewResult.background": "#1f1f1f",
+        "peekViewResult.matchHighlightBackground": "#bb800966",
+        "pickerGroup.border": "#3c3c3c",
+        "ports.iconRunningProcessForeground": "#369432",
+        "progressBar.background": "#0078d4",
+        "quickInput.background": "#222222",
+        "quickInput.foreground": "#cccccc",
+        "settings.dropdownBackground": "#313131",
+        "settings.dropdownBorder": "#3c3c3c",
+        "settings.headerForeground": "#ffffff",
+        "settings.modifiedItemIndicator": "#bb800966",
+        "sideBar.background": "#181818",
+        "sideBar.border": "#2b2b2b",
+        "sideBar.foreground": "#cccccc",
+        "sideBarSectionHeader.background": "#181818",
+        "sideBarSectionHeader.border": "#2b2b2b",
+        "sideBarSectionHeader.foreground": "#cccccc",
+        "sideBarTitle.foreground": "#cccccc",
+        "statusBar.background": "#181818",
+        "statusBar.border": "#2b2b2b",
+        "statusBar.debuggingBackground": "#0078d4",
+        "statusBar.debuggingForeground": "#ffffff",
+        "statusBar.focusBorder": "#0078d4",
+        "statusBar.foreground": "#cccccc",
+        "statusBar.noFolderBackground": "#1f1f1f",
+        "statusBarItem.focusBorder": "#0078d4",
+        "statusBarItem.prominentBackground": "#6e768166",
+        "statusBarItem.remoteBackground": "#0078d4",
+        "statusBarItem.remoteForeground": "#ffffff",
+        "tab.activeBackground": "#1f1f1f",
+        "tab.activeBorder": "#1f1f1f",
+        "tab.activeBorderTop": "#0078d4",
+        "tab.activeForeground": "#ffffff",
+        "tab.border": "#2b2b2b",
+        "tab.hoverBackground": "#1f1f1f",
+        "tab.inactiveBackground": "#181818",
+        "tab.inactiveForeground": "#9d9d9d",
+        "tab.lastPinnedBorder": "#cccccc33",
+        "tab.selectedBackground": "#222222",
+        "tab.selectedBorderTop": "#6caddf",
+        "tab.selectedForeground": "#ffffffa0",
+        "tab.unfocusedActiveBorder": "#1f1f1f",
+        "tab.unfocusedActiveBorderTop": "#2b2b2b",
+        "tab.unfocusedHoverBackground": "#1f1f1f",
+        "terminal.foreground": "#cccccc",
+        "terminal.inactiveSelectionBackground": "#3a3d41",
+        "terminal.tab.activeBorder": "#0078d4",
+        "textBlockQuote.background": "#2b2b2b",
+        "textBlockQuote.border": "#616161",
+        "textCodeBlock.background": "#2b2b2b",
+        "textLink.activeForeground": "#4daafc",
+        "textLink.foreground": "#4daafc",
+        "textPreformat.background": "#3c3c3c",
+        "textPreformat.foreground": "#d0d0d0",
+        "textSeparator.foreground": "#21262d",
+        "titleBar.activeBackground": "#181818",
+        "titleBar.activeForeground": "#cccccc",
+        "titleBar.border": "#2b2b2b",
+        "titleBar.inactiveBackground": "#1f1f1f",
+        "titleBar.inactiveForeground": "#9d9d9d",
+        "welcomePage.progress.foreground": "#0078d4",
+        "welcomePage.tileBackground": "#2b2b2b",
+        "widget.border": "#313131"
+    },
+    "tokenColors": [
+        {
+            "name": "MCFunction 行注释",
+            "scope": "comment.line.mcfunction",
+            "settings": {
+                "foreground": "#6A9955",
+                "fontStyle": "italic"
+            }
+        },
+        {
+            "name": "MCFunction 块注释（#>/#! 开头）",
+            "scope": "comment.block.mcfunction",
+            "settings": {
+                "foreground": "#5A8A45", 
+                "fontStyle": "italic"
+            }
+        },
+        {
+            "name": "MCFunction 注释内强调文本（#> 后的内容）",
+            "scope": "markup.bold.mcfunction",
+            "settings": {
+                "foreground": "#A8D87C",
+                "fontStyle": "bold italic"
+            }
+        },
+        {
+            "name": "MCFunction 注释内@标记（如@rx97）",
+            "scope": "markup.heading.mcfunction",
+            "settings": {
+                "foreground": "#87CEEB",
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "name": "MCFunction 普通命令（如execute、give）",
+            "scope": "keyword.command.mcfunction",
+            "settings": {
+                "foreground": "#C9A0DC" 
+            }
+        },
+        {
+            "name": "MCFunction say命令（独立高亮，区分普通命令）",
+            "scope": "keyword.control.flow.mcfunction",
+            "settings": {
+                "foreground": "#C586C0"
+            }
+        },
+        {
+            "name": "MCFunction NBT双引号字符串",
+            "scope": "string.quoted.double.nbt.mcfunction",
+            "settings": {
+                "foreground": "#CE9178"
+            }
+        },
+        {
+            "name": "MCFunction 普通双引号字符串",
+            "scope": "string.quoted.double.mcfunction",
+            "settings": {
+                "foreground": "#FFA07A" 
+            }
+        },
+        {
+            "name": "MCFunction 单引号字符串",
+            "scope": "string.quoted.single.mcfunction",
+            "settings": {
+                "foreground": "#FF8C69" 
+            }
+        },
+        {
+            "name": "MCFunction 转义字符（如\\n、\\\"）",
+            "scope": "constant.character.escape.mcfunction",
+            "settings": {
+                "foreground": "#FFD700", 
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "name": "MCFunction 目标选择器（如@a、@p）",
+            "scope": "support.class.mcfunction",
+            "settings": {
+                "foreground": "#9CDCFE" 
+            }
+        },
+        {
+            "name": "MCFunction 选择器参数（如tag=player、r=5）",
+            "scope": "variable.parameter.selector.mcfunction",
+            "settings": {
+                "foreground": "#87CEEB" 
+            }
+        },
+        {
+            "name": "MCFunction 选择器分隔符（逗号）",
+            "scope": "punctuation.separator.mcfunction",
+            "settings": {
+                "foreground": "#A9A9A9" 
+            }
+        },
+        {
+            "name": "MCFunction NBT结构（外层{}）",
+            "scope": "meta.nbt.mcfunction",
+            "settings": {
+                "foreground": "#4EC9B0"
+            }
+        },
+        {
+            "name": "MCFunction NBT键名（如CustomName:）",
+            "scope": "variable.nbt.key.mcfunction",
+            "settings": {
+                "foreground": "#76EEC6"
+            }
+        },
+        {
+            "name": "MCFunction NBT数值（如123、45L）",
+            "scope": "constant.numeric.nbt.mcfunction",
+            "settings": {
+                "foreground": "#B5CEA8"
+            }
+        },
+        {
+            "name": "MCFunction NBT分隔符（逗号）",
+            "scope": "punctuation.separator.nbt.mcfunction",
+            "settings": {
+                "foreground": "#A9A9A9"
+            }
+        },
+        {
+            "name": "MCFunction 整数（如-5、100L）",
+            "scope": "constant.numeric.integer.mcfunction",
+            "settings": {
+                "foreground": "#B5CEA8"
+            }
+        },
+        {
+            "name": "MCFunction 浮点数（如3.14、-0.5）",
+            "scope": "constant.numeric.float.mcfunction",
+            "settings": {
+                "foreground": "#90EE90"
+            }
+        },
+        {
+            "name": "MCFunction 布尔值（true/false）",
+            "scope": "constant.boolean.mcfunction",
+            "settings": {
+                "foreground": "#569CD6"
+            }
+        },
+        {
+            "name": "MCFunction UUID（如123e4567-e89b-12d3-a456-426614174000）",
+            "scope": "variable.uuid.mcfunction",
+            "settings": {
+                "foreground": "#DDA0DD"
+            }
+        },
+        {
+            "name": "MCFunction 资源名（如minecraft:zombie、pack/func）",
+            "scope": "entity.name.function.mcfunction",
+            "settings": {
+                "foreground": "#DCDCAA"
+            }
+        },
+        {
+            "name": "MCFunction 坐标符号（~、^）",
+            "scope": "constant.numeric.mcfunction",
+            "settings": {
+                "foreground": "#B5CEA8"
+            }
+        },
+        {
+            "name": "MCFunction 运算符（如+、=、:、,）",
+            "scope": "keyword.operator.mcfunction",
+            "settings": {
+                "foreground": "#F0E68C" 
+            }
+        },
+        {
+            "name": "MCFunction Property键（如key:、#key）",
+            "scope": "variable.other.mcfunction",
+            "settings": {
+                "foreground": "#87CEFA" 
+            }
+        }
+    ]
+    
+}
