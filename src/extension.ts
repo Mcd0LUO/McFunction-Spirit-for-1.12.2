@@ -10,6 +10,7 @@ import { FileLineIdleSearchProcessor } from './core/FileLineIdleSearchProcessor'
 import { join } from 'path';
 import { LinePreviewManager } from './previewer/LinePreviewManager';
 import { FileLineCorrection } from './correction/FileLineCorrection';
+import { MinecraftUtils } from './utils/MinecraftUtils';
 
 
 // 全局定时器引用，用于插件停用时分销
@@ -36,7 +37,8 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('mcfunction.createFunctionFile', createFunctionFile),
         vscode.commands.registerCommand('mcfunction.keyCreateFunctionFile', keyCreateFunctionFile),
-        vscode.commands.registerCommand('mcfunction.reloadFunction', onReloadFunction(context))
+        vscode.commands.registerCommand('mcfunction.reloadFunction', onReloadFunction(context)),
+        vscode.commands.registerCommand('mcfunction.getFunctionCallPath', getFunctionCallPath)
     );
 
     // 注册文档链接提供者
@@ -91,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // 文本变更：增加防抖，合并短时间内的多次变更
         createDebouncedListener(vscode.workspace.onDidChangeTextDocument, (event) => {
             if (event.document.languageId !== 'mcfunction') {return;}
-            handleTextChanges(event, lineProcessor);
+            lineProcessor.handleTextChanges(event, lineProcessor);
         }, 300),
 
         // 保存文档：仅在内容有实际变更时扫描
@@ -123,6 +125,8 @@ export async function activate(context: vscode.ExtensionContext) {
     const lineCorrection = FileLineCorrection.instance;
     lineCorrection.start();
     context.subscriptions.push(lineCorrection);
+
+    // 右键菜单
 
 
 }
@@ -159,34 +163,6 @@ async function handleFileChange(uri: vscode.Uri, type: 'create' | 'delete' | 'ch
     }
 }
 
-/**
- * 处理文本变更事件（优化解析逻辑）
- */
-function handleTextChanges(event: vscode.TextDocumentChangeEvent, processor: FileLineIdleSearchProcessor) {
-    const document = event.document;
-    const changes = event.contentChanges;
-
-    // 快速过滤：无实质内容变更则跳过
-    if (changes.every(change => change.text.trim() === '' && change.rangeLength === 0)) {
-        return;
-    }
-
-    changes.forEach(change => {
-        const startLine = change.range.start.line;
-        const endLine = change.range.end.line;
-
-        // 优化：只处理包含关键字的行（减少解析量）
-        for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
-            if (lineNumber >= document.lineCount) {continue;}
-            const lineText = document.lineAt(lineNumber).text;
-
-            // 仅处理可能包含tag/scoreboard的行
-            if (lineText.includes('scoreboard') || lineText.includes('tag=')) {
-                processor.processLineUpdate(document, lineNumber, lineText);
-            }
-        }
-    });
-}
 
 /**
  * 重新加载函数的处理函数（优化反馈）
@@ -393,6 +369,56 @@ function createThrottledProcessor<T extends (...args: any[]) => void>(
 function delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+
+/**
+ * 获取用户右键点击的mcfunction文件的Minecraft函数调用路径
+ * @param uri 右键点击的文件URI（由VS Code自动传递）
+ */
+async function getFunctionCallPath(uri: vscode.Uri) {
+    // 1. 验证传入的URI（确保是右键点击的文件）
+    if (!uri) {
+        vscode.window.showErrorMessage('未检测到目标文件，请右键点击.mcfunction文件后重试');
+        return;
+    }
+
+    // 2. 验证文件类型
+    if (path.extname(uri.fsPath) !== '.mcfunction') {
+        vscode.window.showErrorMessage('请右键点击.mcfunction后缀的文件');
+        return;
+    }
+
+    try {
+        // 3. 解析工作区路径
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('文件不在当前工作区内');
+            return;
+        }
+
+        // 4. 提取函数命名空间和路径（适配datapack结构）
+        // 标准结构：data/<namespace>/functions/<path>.mcfunction
+        const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+        const pathSegments = relativePath.split(path.sep);
+
+        // 查找data目录位置（确定命名空间起点）
+        if (pathSegments[0] !== 'functions') {
+            vscode.window.showErrorMessage('请将函数文件放置在data/functions/<namespace>目录下');
+            return;
+        }
+        const nameSpace = pathSegments[1];
+        const functionPath = pathSegments.slice(2).join(path.sep).slice(0, -11);
+
+        const result = `${nameSpace}:${functionPath}`;
+        // 6. 复制到剪贴板并提示
+        await vscode.env.clipboard.writeText(result);
+        vscode.window.showInformationMessage(`函数调用路径已复制: ${result}`);
+
+    } catch (error) {
+        vscode.window.showErrorMessage(`获取路径失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
 
 
 /**

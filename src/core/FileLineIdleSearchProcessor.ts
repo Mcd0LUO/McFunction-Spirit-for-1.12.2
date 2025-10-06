@@ -91,6 +91,35 @@ export class FileLineIdleSearchProcessor {
     }
 
     /**
+     * 处理文本变更事件（优化解析逻辑）
+     */
+    public handleTextChanges(event: vscode.TextDocumentChangeEvent, processor: FileLineIdleSearchProcessor) {
+        const document = event.document;
+        const changes = event.contentChanges;
+    
+        // 快速过滤：无实质内容变更则跳过
+        if (changes.every(change => change.text.trim() === '' && change.rangeLength === 0)) {
+            return;
+        }
+    
+        changes.forEach(change => {
+            const startLine = change.range.start.line;
+            const endLine = change.range.end.line;
+    
+            // 优化：只处理包含关键字的行（减少解析量）
+            for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
+                if (lineNumber >= document.lineCount) {continue;}
+                const lineText = document.lineAt(lineNumber).text;
+    
+                // 仅处理可能包含tag/scoreboard的行
+                if (lineText.includes('scoreboard') || lineText.includes('tag=')) {
+                    processor.processLineUpdate(document, lineNumber, lineText);
+                }
+            }
+        });
+    }
+
+    /**
      * 扫描单个 .mcfunction 文件
      * @param fullFilePath 文件绝对路径
      */

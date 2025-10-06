@@ -4,7 +4,7 @@
   "displayName": "McFunction Spirit for 1.12.2",
   "description": "A simple Minecraft 1.12.2 function development tool that provides features such as syntax completion and function management.",
   "repository": "https://github.com/Mcd0LUO/McFunction-Spirit-for-1.12.2",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "icon": "icons/main_icon.png",
   "publisher": "Mcd0-LUO",
   "license": "MIT",
@@ -15,8 +15,7 @@
     "Programming Languages",
     "Snippets"
   ],
-  "activationEvents": [
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
@@ -32,7 +31,7 @@
         "icon": {
           "light": "icons/light.png",
           "dark": "icons/dark.png"
-        }, 
+        },
         "configuration": "./syntaxes/language-configuration.json"
       }
     ],
@@ -50,8 +49,6 @@
         "path": "./themes/mcfunction-theme-dark.json"
       }
     ],
-
-
     "commands": [
       {
         "command": "mcfunction.createFunctionFile",
@@ -67,6 +64,11 @@
         "command": "mcfunction.keyCreateFunctionFile",
         "title": "快捷键新建mcfunction文件",
         "category": "McFunction Spirit"
+      },
+      {
+        "command": "mcfunction.getFunctionCallPath",
+        "title": "复制mc函数调用路径-> xx:xx",
+        "category": "McFunction Spirit"
       }
     ],
     "menus": {
@@ -74,6 +76,11 @@
         {
           "command": "mcfunction.createFunctionFile",
           "when": "explorerResourceIsFolder",
+          "group": "4_new@1"
+        },
+        {
+          "command": "mcfunction.getFunctionCallPath",
+          "when": "resourceExtname == '.mcfunction'",
           "group": "4_new@1"
         }
       ],
