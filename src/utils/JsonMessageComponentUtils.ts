@@ -127,7 +127,6 @@ export class JsonCompletionHelper {
      */
     static provideJsonTextCompletions(
         commands: string[],
-        fulljson: string,
         createCompletionItem: (
             label: string,
             description: string,
@@ -140,7 +139,6 @@ export class JsonCompletionHelper {
     ): vscode.CompletionItem[] {
         const currentJsonFragment = commands[commands.length - 1] || '';
         const cursorPosition = currentJsonFragment.length;
-
         // 解析JSON上下文 + 传递JSON片段（用于后续键提取）
         const jsonContext = this.analyzeJsonContext(currentJsonFragment, cursorPosition);
 

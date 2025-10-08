@@ -45,7 +45,7 @@ git branch -d <分支名>  # 强制删除用 -D
 
 
 # ================ 远程仓库操作 ================
-# 关联远程仓库（origin为远程仓库别名）
+# 关联远程仓库（origin为远程仓库别名
 git remote add origin <远程仓库URL>
 # 查看远程仓库信息
 git remote -v

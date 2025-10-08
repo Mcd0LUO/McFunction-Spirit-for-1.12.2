@@ -3,6 +3,7 @@ import { MainCompletionProvider } from "../core/MainCompletionProvider";
 import { MinecraftUtils } from '../utils/MinecraftUtils';
 import { DataLoader } from '../core/DataLoader';
 import { FileLineIdleSearchProcessor } from '../core/FileLineIdleSearchProcessor';
+import { DocumentManager } from '../core/DocumentManager';
 
 /**
  * .mcfunction 文件命令检查器
@@ -215,7 +216,7 @@ export class FileLineCorrection implements vscode.Disposable {
         const checkPromises = [];
         for (let i = 0; i < document.lineCount; i++) {
             const lineText = document.lineAt(i).text;
-            checkPromises.push(this.checkLineErrors(i, lineText));
+            checkPromises.push(this.checkLineErrors(document ,i, lineText));
         }
         await Promise.all(checkPromises);
 
@@ -227,7 +228,7 @@ export class FileLineCorrection implements vscode.Disposable {
      * @param lineNumber 行号
      * @param lineText 行文本
      */
-    public async checkLineErrors(lineNumber: number, lineText: string): Promise<void> {
+    public async checkLineErrors(document: vscode.TextDocument ,lineNumber: number, lineText: string): Promise<void> {
         const errors: CorrectionError[] = [];
         const trimmedLine = lineText.trim();
 
@@ -238,7 +239,7 @@ export class FileLineCorrection implements vscode.Disposable {
         }
 
         // 提取命令并找到活跃命令片段（处理嵌套命令）
-        const commandTokens = MainCompletionProvider.instance.extractCommand(trimmedLine);
+        const commandTokens = DocumentManager.getInstance().getCommandSegments(document, lineNumber);
         const activeCommand = MainCompletionProvider.instance.findActiveCommand(commandTokens);
 
         // 空安全处理：活跃命令不存在则返回
@@ -376,7 +377,7 @@ export class FileLineCorrection implements vscode.Disposable {
         }
 
         const lineText = document.lineAt(lineNumber).text;
-        await this.checkLineErrors(lineNumber, lineText);
+        await this.checkLineErrors(document,lineNumber, lineText);
     }
 
 

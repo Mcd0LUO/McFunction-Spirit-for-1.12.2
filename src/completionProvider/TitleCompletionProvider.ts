@@ -20,7 +20,7 @@ export class TitleCompletionProvider extends MinecraftCommandCompletionProvider 
                 if (commands[2] === 'times') {
                     return this.createSingleCompletionItem("<淡入> <滞留> <淡出>", "设置时间参数(tick)", "", false, vscode.CompletionItemKind.Keyword);
                 }
-                return JsonCompletionHelper.provideJsonTextCompletions(commands, lineCommands[lineCommands.length -1], this.createCompletionItem.bind(this),document, position);
+                return JsonCompletionHelper.provideJsonTextCompletions(this.extractCommand(document.lineAt(position.line).text.substring(0, position.character)), this.createCompletionItem.bind(this),document, position);
 
 
         }

@@ -3,6 +3,7 @@ import { CommandRegistry } from './CommandRegistry';
 import { BlockNameMap, EntityNameList } from '../utils/EnumLib';
 import { FileLineIdleSearchProcessor } from './FileLineIdleSearchProcessor';
 import { ItemNameMap } from "../utils/EnumLib";
+import { DocumentManager } from './DocumentManager';
 
 
 /**
@@ -11,6 +12,8 @@ import { ItemNameMap } from "../utils/EnumLib";
  * 子类需实现 `provideCommandCompletions` 方法处理具体命令的补全
  */
 export abstract class MinecraftCommandCompletionProvider implements vscode.CompletionItemProvider {
+
+
     /**
      * `execute` 命令的固定参数数量（实体选择器 + x + y + z）
      * 完整格式：`execute <实体> <x> <y> <z> <子命令>`
@@ -69,6 +72,8 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         { label: 'l', detail: '筛选等级小于等于指定值的玩家', insertText: 'l=' },
     ];
 
+
+
     /**
      * 补全主入口：解析命令并返回对应补全项
      * @param document 当前文档
@@ -83,19 +88,18 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         token: vscode.CancellationToken,
         context: vscode.CompletionContext
     ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-        // 提取光标前的文本并解析为命令片段（如 "execute @a ~ ~" → ["execute", "@a", "~", "~"]）
-        const lineText = document.lineAt(position.line).text;
-        const textBeforeCursor = lineText.substring(0, position.character);
-        const commands = this.extractCommand(textBeforeCursor);
-        const lineCommands = this.extractCommand(lineText);
+        // 提取行文本并解析为命令片段（如 "execute @a ~ ~" → ["execute", "@a", "~", "~"]）
+        // const lineText = document.lineAt(position.line).text;
+        // const textBeforeCursor = lineText.substring(0, position.character);
+        const lineCommands = DocumentManager.getInstance().getCommandSegments(document, position.line);
         // console.log(commands);
         // 无命令片段时，返回根命令补全
-        if (!commands || commands.length === 0) {
+        if (!lineCommands || lineCommands.length === 0) {
             return this.provideRootCompletions('');
         }
 
         // 找到当前活跃的命令（处理多层嵌套 execute，优先处理最内层未完成的命令）
-        const activeCommand = this.findActiveCommand(commands);
+        const activeCommand = this.findActiveCommand(lineCommands);
         const { isExecute, isComplete, currentCommands, paramStage } = activeCommand;
 
         // 活跃命令是 execute 且未完整：补全 execute 自身的参数（实体、x、y、z）
@@ -204,20 +208,17 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         return MinecraftCommandCompletionProvider.EXECUTE_PARAM_COUNT - 1; // 理论上不会触发
     }
 
-    /**
-     * 从文本中提取命令片段（处理空格、引号、括号等特殊字符）
-     * 例如：解析 "execute @a[tag=test] ~ ~ ~ say" → ["execute", "@a[tag=test]", "~", "~", "~", "say"]
-     * @param text 待解析的文本
-     * @returns 命令片段数组
-     */
+
     /**
      * 从文本中提取命令片段（处理空格、引号、括号等特殊字符）
      * 增强版：正确处理JSON对象/数组内部的空格，将整个JSON视为单个参数
      * 例如：解析 "tellraw @s {\"text\": \"内容\"}" → ["tellraw", "@s", "{\"text\": \"内容\"}"]
+     * 例如：解析 "execute @a[tag=test] ~ ~ ~ say" → ["execute", "@a[tag=test]", "~", "~", "~", "say"]
      * @param text 待解析的文本
      * @returns 命令片段数组
      */
     public extractCommand(text: string): string[] {
+
         const result: string[] = [];
         let start = 0;
         let inQuotes = false;
@@ -260,8 +261,8 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
                 }
 
                 // 处理JSON对象括号（计数器管理平衡）
-                if (char === '{') {bracketState.jsonObject++;}
-                if (char === '}') {bracketState.jsonObject = Math.max(0, bracketState.jsonObject - 1);}
+                if (char === '{') { bracketState.jsonObject++; }
+                if (char === '}') { bracketState.jsonObject = Math.max(0, bracketState.jsonObject - 1); }
 
                 // 处理JSON数组括号（计数器管理平衡）
                 if (char === '[') {
@@ -306,10 +307,10 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         if (text.length > 0 && text[text.length - 1] === ' ' && start >= text.length) {
             result.push('');
         }
-
+        // console.log(result);
         return result;
     }
-    
+
 
 
     /**
@@ -604,7 +605,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
                 vscode.CompletionItemKind.Class
             )
         );
-    } 
+    }
 
     /**
      * 获取当前输入文本的范围

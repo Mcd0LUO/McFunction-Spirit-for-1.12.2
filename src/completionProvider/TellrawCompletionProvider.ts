@@ -28,7 +28,7 @@ export class TellrawCompletionProvider extends MinecraftCommandCompletionProvide
         // 补全JSON文本内容（使用工具类）
         if (commands.length >= 3) {
             // console.log(commands);
-            return JsonCompletionHelper.provideJsonTextCompletions(commands, lineCommands[lineCommands.length - 1],this.createCompletionItem.bind(this),document,position);
+            return JsonCompletionHelper.provideJsonTextCompletions(this.extractCommand(document.lineAt(position.line).text.substring(0, position.character)),this.createCompletionItem.bind(this),document, position);
         }
         
         return [];

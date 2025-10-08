@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MainCompletionProvider } from "../core/MainCompletionProvider";
 import { MinecraftUtils } from '../utils/MinecraftUtils';
+import { DocumentManager } from './DocumentManager';
 
 /** 命令配置接口，定义不同命令的解析规则 */
 interface CommandConfig {
@@ -127,7 +128,7 @@ export class LinkProvider implements vscode.DocumentLinkProvider {
             }
 
             // 处理行并缓存结果
-            const parsedLinks = this.processLine(line.text, lineNumber, workspaceFolder, line, token);
+            const parsedLinks = this.processLine(document ,line.text, lineNumber,line);
             this.linkCache.set(cacheKey, parsedLinks);
             setTimeout(() => this.linkCache.delete(cacheKey), LinkProvider.CACHE_TTL);
 
@@ -154,11 +155,10 @@ export class LinkProvider implements vscode.DocumentLinkProvider {
 
     /** 处理单行文本（优化流程：提前短路+缓存复用） */
     private processLine(
+        document: vscode.TextDocument,
         lineText: string,
         lineNumber: number,
-        workspaceFolder: vscode.WorkspaceFolder,
         line: vscode.TextLine,
-        token: vscode.CancellationToken
     ): vscode.DocumentLink[] {
         const links: vscode.DocumentLink[] = [];
         const trimmedLine = lineText.trim();
@@ -188,7 +188,7 @@ export class LinkProvider implements vscode.DocumentLinkProvider {
         const textHash = this.simpleHash(commandText);
         let tokens = this.tokenCache.get(textHash.toString());
         if (!tokens) {
-            tokens = MainCompletionProvider.instance.extractCommand(commandText);
+            tokens = DocumentManager.getInstance().getCommandSegments(document, lineNumber);
             this.tokenCache.set(textHash.toString(), tokens);
             // 令牌缓存单独设置较短过期时间（避免内存占用过大）
             setTimeout(() => this.tokenCache.delete(textHash.toString()), 5000);

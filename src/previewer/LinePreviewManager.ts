@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { MainCompletionProvider } from '../core/MainCompletionProvider';
+import { DocumentManager } from '../core/DocumentManager';
 
 /**
  * Minecraft颜色代码枚举，代表16种基本颜色
@@ -181,10 +182,9 @@ export class LinePreviewManager implements vscode.Disposable {
         
         // 获取光标所在行的信息
         const cursorLine = editor.selection.active.line;
-        const lineText = editor.document.lineAt(cursorLine).text.trim();
         
         // 使用主补全提供者解析命令
-        const commands = MainCompletionProvider.instance.extractCommand(lineText);
+        const commands = DocumentManager.getInstance().getCommandSegments(editor.document, cursorLine);
         if (commands.length === 0) {return;}
 
         // 查找当前活跃的命令
