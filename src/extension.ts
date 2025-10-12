@@ -407,7 +407,7 @@ async function getFunctionCallPath(uri: vscode.Uri) {
             return;
         }
         const nameSpace = pathSegments[1];
-        const functionPath = pathSegments.slice(2).join(path.sep).slice(0, -11);
+        const functionPath = pathSegments.slice(2).join("/").slice(0, -11);
 
         const result = `${nameSpace}:${functionPath}`;
         // 6. 复制到剪贴板并提示
