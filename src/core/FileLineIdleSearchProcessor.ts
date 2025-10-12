@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DataLoader } from './DataLoader';
+import { DocumentManager } from './DocumentManager';
+import { MainCompletionProvider } from './MainCompletionProvider';
 
 /**
  * 用于扫描 .mcfunction 文件中 scoreboard 相关的 tag 和 objective 信息
@@ -164,7 +166,7 @@ export class FileLineIdleSearchProcessor {
      */
     private processLineUpdateByPath(filePath: string, lineNumber: number, lineText: string): void {
         // 解析行内容为结构化参数（支持带引号的参数）
-        const lineParts = this.parseCommandLine(lineText.trim());
+        const lineParts = MainCompletionProvider.instance.extractCommand(lineText);
         if (lineParts.length === 0) {return;}
 
         // 统一处理 tag 和 scoreboard 的提取与缓存更新
@@ -218,49 +220,6 @@ export class FileLineIdleSearchProcessor {
         }
     }
 
-    /**
-     * 解析命令行参数（支持带单/双引号的参数，引号内空格不拆分）
-     * @param line 命令行文本
-     * @returns 解析后的参数数组
-     */
-    private parseCommandLine(line: string): string[] {
-        const parts: string[] = [];
-        let currentPart = '';
-        let inQuotes = false;
-        let quoteChar: '"' | "'" | null = null;
-
-        for (const char of line) {
-            if (char === '"' || char === "'") {
-                if (inQuotes && char === quoteChar) {
-                    // 闭合引号
-                    inQuotes = false;
-                    quoteChar = null;
-                } else if (!inQuotes) {
-                    // 开启引号
-                    inQuotes = true;
-                    quoteChar = char as '"' | "'";
-                } else {
-                    // 不同引号类型，视为普通字符
-                    currentPart += char;
-                }
-            } else if (char === ' ' && !inQuotes) {
-                // 空格且不在引号中，分割参数
-                if (currentPart) {
-                    parts.push(currentPart);
-                    currentPart = '';
-                }
-            } else {
-                currentPart += char;
-            }
-        }
-
-        // 添加最后一个参数（处理未闭合引号的情况，视为普通文本）
-        if (currentPart) {
-            parts.push(currentPart);
-        }
-
-        return parts;
-    }
 
     /**
      * 从行参数中提取 tag（scoreboard players tag <目标> add <标签>）
