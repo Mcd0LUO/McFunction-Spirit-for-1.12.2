@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MinecraftCommandCompletionProvider } from '../core/CommandCompletionProvider';
-import { JsonCompletionHelper } from '../utils/JsonMessageComponentUtils';
+import { JsonCompletionHelper } from '../utils/JsonMessageCompletionUtils';
 
 export class TitleCompletionProvider extends MinecraftCommandCompletionProvider {
     public provideCommandCompletions(commands: string[],lineCommands: string[], document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {

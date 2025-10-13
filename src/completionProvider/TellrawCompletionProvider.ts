@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MinecraftCommandCompletionProvider } from '../core/CommandCompletionProvider';
-import { JsonCompletionHelper } from '../utils/JsonMessageComponentUtils';
+import { JsonCompletionHelper } from '../utils/JsonMessageCompletionUtils';
 /**
  * Tellraw命令补全提供者
  * 负责为Minecraft 1.12.2版本的/tellraw命令提供智能补全功能

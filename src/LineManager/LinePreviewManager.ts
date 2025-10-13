@@ -1,32 +1,8 @@
 import * as vscode from 'vscode';
 import { MainCompletionProvider } from '../core/MainCompletionProvider';
 import { DocumentManager } from '../core/DocumentManager';
-
-/**
- * Minecraft颜色代码枚举，代表16种基本颜色
- */
-type ColorCode = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
-
-/**
- * Minecraft样式代码枚举
- * l:粗体  m:删除线  n:下划线  o:斜体  r:重置  k:随机字符
- */
-type StyleCode = 'l' | 'm' | 'n' | 'o' | 'r' | 'k';
-
-/**
- * 格式代码联合类型，包含颜色和样式代码
- */
-type FormatCode = ColorCode | StyleCode;
-
-/**
- * 混淆文本符号，用于替代混淆格式代码(k)的内容
- */
-const OBFUSCATED_SYMBOL = '■';
-
-/**
- * 换行符常量
- */
-const LINE_BREAK = '\n';
+import { JsonMessageUtils } from '../utils/JsonMessageUtils';
+import { ColorCode, StyleCode, FormatCode, LINE_BREAK, OBFUSCATED_SYMBOL } from '../utils/JsonMessageUtils';
 
 /**
  * 防抖延迟时间（毫秒）
@@ -42,37 +18,37 @@ interface StyledFragment {
      * 文本内容
      */
     text: string;
-    
+
     /**
      * 文本颜色
      */
     color?: string;
-    
+
     /**
      * 是否加粗
      */
     bold: boolean;
-    
+
     /**
      * 是否斜体
      */
     italic: boolean;
-    
+
     /**
      * 是否下划线
      */
     underlined: boolean;
-    
+
     /**
      * 是否删除线
      */
     strikethrough: boolean;
-    
+
     /**
      * 是否为内部片段（不是第一个）
      */
     isInner: boolean;
-    
+
     /**
      * 所在行偏移量
      */
@@ -88,12 +64,12 @@ export class LinePreviewManager implements vscode.Disposable {
      * 装饰器集合，用于管理创建的文本装饰
      */
     private decorations: Map<string, vscode.TextEditorDecorationType> = new Map();
-    
+
     /**
      * 可释放资源集合，用于插件销毁时清理资源
      */
     private disposables: vscode.Disposable[] = [];
-    
+
     /**
      * 防抖定时器，用于控制预览更新频率
      */
@@ -175,26 +151,26 @@ export class LinePreviewManager implements vscode.Disposable {
     private updatePreview() {
         // 获取当前活动的文本编辑器
         const editor = vscode.window.activeTextEditor;
-        if (!editor) {return;}
+        if (!editor) { return; }
 
         // 清除现有的装饰
         this.clearDecorations();
-        
+
         // 获取光标所在行的信息
         const cursorLine = editor.selection.active.line;
-        
+
         // 使用主补全提供者解析命令
         const commands = DocumentManager.getInstance().getCommandSegments(editor.document, cursorLine);
-        if (commands.length === 0) {return;}
+        if (commands.length === 0) { return; }
 
         // 查找当前活跃的命令
         const activeCommand = MainCompletionProvider.instance.findActiveCommand(commands);
-        
+
         // 检查是否为支持的命令(tellraw或title)
         if (!this.isSupportedCommand(activeCommand.currentCommands[0])) {
             return;
         }
-        
+
         let jsonPart = '';
         // 根据命令类型提取JSON部分
         if (activeCommand.currentCommands[0] === 'tellraw' && activeCommand.currentCommands.length > 2) {
@@ -203,19 +179,19 @@ export class LinePreviewManager implements vscode.Disposable {
         else if (activeCommand.currentCommands[0] === 'title' && activeCommand.currentCommands.length > 3) {
             jsonPart = activeCommand.currentCommands[3];
         }
-        else {return;}
+        else { return; }
 
         // 如果没有JSON部分，显示警告装饰
         if (!jsonPart) {
             this.showWarningDecoration(editor, cursorLine);
             return;
         }
-        
+
         // 尝试解析JSON并应用装饰
         try {
             const textComponents = JSON.parse(jsonPart);
             const components = Array.isArray(textComponents) ? textComponents : [textComponents];
-            const normalizedComponents = this.normalizeComponents(components);
+            const normalizedComponents = JsonMessageUtils.getInstance().normalizeComponents(components);
             const styledFragments = this.parseFormatCodes(normalizedComponents);
             this.applyComponentDecorations(editor, cursorLine, styledFragments);
         } catch (error) {
@@ -231,75 +207,6 @@ export class LinePreviewManager implements vscode.Disposable {
      */
     private isSupportedCommand(command: string): boolean {
         return command === 'tellraw' || command === 'title';
-    }
-
-
-    /**
-     * 标准化组件数据
-     * 将各种格式的JSON组件转换为统一的内部格式
-     * @param components 原始组件数组
-     * @returns 标准化后的组件数组
-     */
-    private normalizeComponents(components: any[]): Array<{ text: string, color?: string, bold?: boolean, italic?: boolean, underlined?: boolean, strikethrough?: boolean }> {
-        return components.map(component => {
-            // 处理选择器组件
-            if (typeof component === 'object' && component.selector) {
-                return {
-                    text: component.selector,
-                    color: component.color,
-                    bold: this.parseBooleanProperty(component.bold),
-                    italic: this.parseBooleanProperty(component.italic),
-                    underlined: this.parseBooleanProperty(component.underlined),
-                    strikethrough: this.parseBooleanProperty(component.strikethrough)
-                };
-            }
-
-            // 处理计分板组件
-            if (typeof component === 'object' && component.score) {
-                const score = component.score;
-                const scoreText = score.name ? `${score.name}:${score.objective}` : score.objective;
-                return {
-                    text: scoreText,
-                    color: component.color,
-                    bold: this.parseBooleanProperty(component.bold),
-                    italic: this.parseBooleanProperty(component.italic),
-                    underlined: this.parseBooleanProperty(component.underlined),
-                    strikethrough: this.parseBooleanProperty(component.strikethrough)
-                };
-            }
-
-            // 处理字符串组件
-            if (typeof component === 'string') {
-                return {
-                    text: component,
-                    bold: false,
-                    italic: false,
-                    underlined: false,
-                    strikethrough: false
-                };
-            }
-
-            // 处理普通对象组件
-            if (typeof component === 'object') {
-                return {
-                    text: component.text || '',
-                    color: component.color,
-                    bold: this.parseBooleanProperty(component.bold),
-                    italic: this.parseBooleanProperty(component.italic),
-                    underlined: this.parseBooleanProperty(component.underlined),
-                    strikethrough: this.parseBooleanProperty(component.strikethrough)
-                };
-            }
-
-            // 处理其他类型组件
-            return {
-                text: String(component),
-                bold: false,
-                italic: false,
-                underlined: false,
-                strikethrough: false
-            };
-        });
     }
 
     /**
@@ -419,13 +326,13 @@ export class LinePreviewManager implements vscode.Disposable {
                         }
                     }
                 } else {
-                    // 处理普通字符
-                    if (replaceNextChar) {
-                        currentText += OBFUSCATED_SYMBOL;
-                        replaceNextChar = false;
-                    } else {
-                        currentText += text[i];
-                    }
+                    // 关键修复：将普通空格替换为Unicode非换行空格（\u00A0），避免连续空格被合并
+                    const charToAdd = replaceNextChar
+                        ? OBFUSCATED_SYMBOL
+                        : (text[i] === ' ' ? '\u00A0' : text[i]);
+
+                    currentText += charToAdd;
+                    replaceNextChar = false;
                 }
             }
 
@@ -494,14 +401,14 @@ export class LinePreviewManager implements vscode.Disposable {
             let inlineOffset = 0;
 
             lineFragments.forEach((fragment, index) => {
-                if (!fragment.text) {return;}
+                if (!fragment.text) { return; }
 
                 // 创建片段ID
                 const id = `fragment-${Date.now()}-${targetLine}-${index}`;
                 // 文本装饰样式
                 const textDecoration: string[] = [];
-                if (fragment.underlined) {textDecoration.push('underline');}
-                if (fragment.strikethrough) {textDecoration.push('line-through');}
+                if (fragment.underlined) { textDecoration.push('underline'); }
+                if (fragment.strikethrough) { textDecoration.push('line-through'); }
 
                 // 计算水平边距
                 const horizontalMargin = fragment.isInner ? '0' : '0 3px 0 0';
@@ -533,7 +440,6 @@ export class LinePreviewManager implements vscode.Disposable {
             });
         });
     }
-
 
     /**
      * 判断是否为颜色代码
@@ -569,18 +475,6 @@ export class LinePreviewManager implements vscode.Disposable {
             'white': '#FFFFFF'
         };
         return colorMap[colorName] || colorName;
-    }
-
-    /**
-     * 解析布尔属性
-     * 将不同类型的值解析为布尔值
-     * @param value 待解析的值
-     * @returns 解析后的布尔值
-     */
-    private parseBooleanProperty(value: any): boolean {
-        if (typeof value === 'boolean') {return value;}
-        if (typeof value === 'string') {return value.toLowerCase() === 'true';}
-        return false;
     }
 
     /**
@@ -628,10 +522,10 @@ export class LinePreviewManager implements vscode.Disposable {
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
         }
-        
+
         // 清除所有装饰
         this.clearDecorations();
-        
+
         // 释放所有可释放资源
         this.disposables.forEach(d => d.dispose());
     }

@@ -112,7 +112,7 @@ export class MinecraftUtils {
      * @param extension 资源文件的扩展名（函数→".mcfunction"，进度→".json"）
      * @returns vscode.Uri | null 构建成功返回URI，失败返回null
      */
-    private static buildResourceUri(
+    public static buildResourceUri(
         resName: string,
         resourceDir: string,
         extension: string
@@ -234,5 +234,9 @@ export class MinecraftUtils {
         setTimeout(() => {
             this.PATH_PARSE_CACHE.delete(cacheKey);
         }, this.CACHE_TTL);
+    }
+
+    public static getJsonArgIndex(command: string): number { 
+        return command === 'tellraw' ? 2 : 3;
     }
 }

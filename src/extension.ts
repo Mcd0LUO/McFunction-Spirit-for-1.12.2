@@ -8,9 +8,10 @@ import { LinkProvider } from './core/LinkProvider';
 import { DataLoader } from './core/DataLoader';
 import { FileLineIdleSearchProcessor } from './core/FileLineIdleSearchProcessor';
 import { join } from 'path';
-import { LinePreviewManager } from './previewer/LinePreviewManager';
+import { LinePreviewManager } from './LineManager/LinePreviewManager';
 import { FileLineCorrection } from './correction/FileLineCorrection';
 import { MinecraftUtils } from './utils/MinecraftUtils';
+import { LineHoverManager } from './LineManager/LineHoverManager';
 
 
 // 全局定时器引用，用于插件停用时分销
@@ -119,6 +120,8 @@ export async function activate(context: vscode.ExtensionContext) {
     // 实例化命令预览器并激活
     const jsonPreviewer = new LinePreviewManager();
     context.subscriptions.push(jsonPreviewer);
+    const hoverManager = LineHoverManager.getInstance();
+    context.subscriptions.push(hoverManager);
 
     // 注册错误处理器
     // 初始化并启动错误检查器
@@ -126,7 +129,6 @@ export async function activate(context: vscode.ExtensionContext) {
     lineCorrection.start();
     context.subscriptions.push(lineCorrection);
 
-    // 右键菜单
 
 
 }

@@ -191,7 +191,7 @@ export class LinkProvider implements vscode.DocumentLinkProvider {
             tokens = DocumentManager.getInstance().getCommandSegments(document, lineNumber);
             this.tokenCache.set(textHash.toString(), tokens);
             // 令牌缓存单独设置较短过期时间（避免内存占用过大）
-            setTimeout(() => this.tokenCache.delete(textHash.toString()), 5000);
+            setTimeout(() => this.tokenCache.delete(textHash.toString()), 4000);
         }
         if (tokens.length === 0) { return links; }
 
@@ -239,9 +239,8 @@ export class LinkProvider implements vscode.DocumentLinkProvider {
 
         // 生成目标URI（复用解析结果）
         const [nameSpace, path] = result;
-        const targetUri = MinecraftUtils.buildFunctionUri(pathToken);
+        const targetUri = MinecraftUtils.buildResourceUri(pathToken,config.folder, config.extension);
         if (!targetUri) { return links; }
-
         // 创建链接
         const link = new vscode.DocumentLink(adjustedRange, targetUri);
         link.tooltip = `跳转到 ${config.folder}/${nameSpace}/${path}${config.extension}`;
