@@ -7,5 +7,9 @@
     ],
     "space-auto-add": true,
     "check-data-exists": true,
-    "check-scoreboard-length": true
+    "check-scoreboard-length": true,
+    "json-message-hover-preview": true,
+    "json-message-block-preview": true,
+    "function-reference-preview": true
+    
 }

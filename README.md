@@ -33,8 +33,7 @@ Author: Mcd0_LUO(小罗)
 请将其 **文件夹** 添加到 **"HelperConfig.json"** 中的  **["ignore-function-directory"]** ，避免不必要的性能开销。    
     eg: "ignore-function-directory" : ["sys/test", "main", "api/cycle/main"]
 
-如果需要补全计分板，则将装载所有计分板的 **函数文件**添加到对应的 *"scoreboards-name-container"* 中    
-    eg: "scoreboards-name-container" : ["sys/scoreboard", "main/demo"]
+其它配置详见插件详情界面-功能-设置
 
 ## Known Issues
 

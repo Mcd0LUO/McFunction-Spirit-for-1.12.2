@@ -3,6 +3,7 @@ import { MainCompletionProvider } from '../core/MainCompletionProvider';
 import { DocumentManager } from '../core/DocumentManager';
 import { JsonMessageUtils } from '../utils/JsonMessageUtils';
 import { ColorCode, StyleCode, FormatCode, LINE_BREAK, OBFUSCATED_SYMBOL } from '../utils/JsonMessageUtils';
+import { DataLoader } from '../core/DataLoader';
 
 /**
  * 防抖延迟时间（毫秒）
@@ -149,6 +150,8 @@ export class LinePreviewManager implements vscode.Disposable {
      * 主要的预览逻辑处理函数
      */
     private updatePreview() {
+        // 是否取消预览
+        if (DataLoader.getConfig()['json-message-block-preview'] === false) { return; }
         // 获取当前活动的文本编辑器
         const editor = vscode.window.activeTextEditor;
         if (!editor) { return; }

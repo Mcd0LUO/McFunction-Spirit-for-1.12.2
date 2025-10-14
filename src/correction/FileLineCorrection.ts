@@ -436,6 +436,7 @@ export class FileLineCorrection implements vscode.Disposable {
 
         const functionName = commandParts[1];
         // 检查函数是否存在
+        if (!functionName) {return;}
         const exists = await MinecraftUtils.isFunctionExists(functionName);
         if (exists) { return; }
 

@@ -5,6 +5,12 @@ import { FileLineIdleSearchProcessor } from './FileLineIdleSearchProcessor';
 import { ItemNameMap } from "../utils/EnumLib";
 import { DocumentManager } from './DocumentManager';
 
+export interface CommandsInfo {
+    isExecute: boolean;       // 是否为 execute 命令
+    isComplete: boolean;      // execute 是否完整（参数是否齐全）
+    currentCommands: string[];// 当前命令片段
+    paramStage: number;       // execute 未完整时的参数阶段（0-3：实体、x、y、z）
+}
 
 /**
  * Minecraft 1.12.2 命令补全基类
@@ -130,12 +136,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
      * @param commands 原始命令片段数组
      * @returns 活跃命令信息（是否为 execute、是否完整、当前片段、参数阶段）
      */
-    public findActiveCommand(commands: string[]): {
-        isExecute: boolean;       // 是否为 execute 命令
-        isComplete: boolean;      // execute 是否完整（参数是否齐全）
-        currentCommands: string[];// 当前命令片段
-        paramStage: number;       // execute 未完整时的参数阶段（0-3：实体、x、y、z）
-    } {
+    public findActiveCommand(commands: string[]): CommandsInfo {
         let currentCommands = [...commands];
 
         while (true) {

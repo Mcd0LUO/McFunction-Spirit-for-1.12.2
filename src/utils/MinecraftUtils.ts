@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 /**
  * Minecraft相关工具类（性能优化版）
@@ -174,6 +175,18 @@ export class MinecraftUtils {
 
         return parseResult;
     }
+    /**
+     * 解析资源路径为命名空间和具体路径（带缓存优化）
+     * 功能：处理资源名称的格式补全（如无命名空间则补全为"minecraft"）
+     * @param resName 原始资源名称（支持格式："func"、"ns:func"、"ns:sub/func"）
+     * @returns [命名空间, 函数路径] | null 解析成功返回数组，格式错误（如多冒号）返回null
+    */
+    public static parseResourceUri(uri: vscode.Uri) {
+        const releivePath = vscode.workspace.asRelativePath(uri);
+        const callPath = releivePath.split('/').slice(1).join('/').replace("/",":").slice(0,-11);
+        return this.parseResourcePath(callPath);
+
+    }
 
     /**
      * 检查Minecraft函数文件是否存在（复用通用检查逻辑）
@@ -219,6 +232,15 @@ export class MinecraftUtils {
         return this.buildResourceUri(resName, 'advancements', '.json');
     }
 
+    public static buildFunctionCallByUri(uri: vscode.Uri): string | null {
+        const result = this.parseResourceUri(uri);
+        if (!result) {
+            return null;
+        }
+        const [namespace, resourcePath] = result;
+        return `${namespace}:${resourcePath}`;
+    }
+
     // ====================================== 辅助工具方法 ======================================
     /**
      * 缓存数据并设置自动过期清理（私有方法，不对外暴露）
@@ -238,5 +260,75 @@ export class MinecraftUtils {
 
     public static getJsonArgIndex(command: string): number { 
         return command === 'tellraw' ? 2 : 3;
+    }
+
+    private static getRelativeFuncPath(fsPath: string): string | null {
+        // 获取相对于工作区的函数路径
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return null;
+        }
+
+        // 查找文件属于哪个工作区
+        for (const folder of workspaceFolders) {
+            if (fsPath.startsWith(folder.uri.fsPath)) {
+                // 移除工作区路径和functions目录部分
+                const relative = fsPath.substring(folder.uri.fsPath.length + 1); // +1 for slash
+                if (relative.startsWith('functions' + path.sep)) {
+                    const funcPath = relative.substring('functions'.length + 1); // +1 for slash
+                    const withoutExtension = funcPath.substring(0, funcPath.length - '.mcfunction'.length);
+                    return withoutExtension.replace(new RegExp('\\' + path.sep, 'g'), '/'); // 替换为正斜杠
+                }
+            }
+        }
+        return null;
+    }
+
+    public static async getAllFunctionPaths(): Promise<vscode.Uri[]> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+        
+        // 检查第一个工作区中的functions目录
+        const firstWorkspace = workspaceFolders[0];
+        try {
+            const functionsUri = vscode.Uri.joinPath(firstWorkspace.uri, 'functions');
+            await vscode.workspace.fs.stat(functionsUri);
+        } catch (error) {
+            vscode.window.showErrorMessage(`函数目录不存在: ${firstWorkspace.uri.path}/functions`);
+            return [];
+        }
+        
+        try {
+            const files = await vscode.workspace.findFiles(
+                'functions/**/*.mcfunction',
+                undefined
+            );
+
+
+            return files;
+
+        }
+        catch (error) {
+            return [];
+        }
+    }
+
+    public static getFunctionRoot(): vscode.Uri | null {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return null;
+        }
+        
+        // 检查第一个工作区中的functions目录
+        const firstWorkspace = workspaceFolders[0];
+        try {
+            const functionsUri = vscode.Uri.joinPath(firstWorkspace.uri, 'functions');
+            return functionsUri;
+        }
+        catch (error) {
+            return null;
+        }
     }
 }

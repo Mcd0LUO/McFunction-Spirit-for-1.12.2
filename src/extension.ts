@@ -15,7 +15,7 @@ import { LineHoverManager } from './LineManager/LineHoverManager';
 
 
 // 全局定时器引用，用于插件停用时分销
-let scanTimer: NodeJS.Timeout | undefined;
+export let scanTimer: NodeJS.Timeout | undefined;
 
 /**
  * 插件激活函数
@@ -52,12 +52,12 @@ export async function activate(context: vscode.ExtensionContext) {
     const functionDir = DataLoader.getfunctionDirectory();
     const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(functionDir, '**/*.mcfunction'),
-        false, false, false // 不监听文件夹创建/删除/重命名
+        false,false,false // 不监听文件夹创建/删除/重命名
     );
     context.subscriptions.push(watcher);
 
     // 监听文件事件（优化：增加节流处理）
-    const fileProcessor = createThrottledProcessor(handleFileChange, 1000);
+    const fileProcessor = createThrottledProcessor(handleWorkSpaceChange, 1000);
     watcher.onDidCreate(uri => fileProcessor(uri, 'create'));
     watcher.onDidDelete(uri => fileProcessor(uri, 'delete'));
     watcher.onDidChange(uri => fileProcessor(uri, 'change'));
@@ -67,55 +67,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // 初始化FileLine处理器
     const lineProcessor = FileLineIdleSearchProcessor.getInstance();
+    context.subscriptions.push(lineProcessor);
 
-    // 优化定时任务：可配置扫描间隔，默认3分钟
-    const config = vscode.workspace.getConfiguration('mcfunction');
-    const scanInterval = config.get<number>('scanInterval', 180) * 1000;
-    scanTimer = setInterval(() => {
-        // 仅在非活跃编辑状态下执行扫描
-        if (!vscode.window.activeTextEditor) {
-            lineProcessor.process().catch(err =>
-                console.error('定时扫描失败:', err)
-            );
-        }
-    }, scanInterval);
-    context.subscriptions.push({ dispose: () => clearInterval(scanTimer) });
 
-    // 文档事件监听（优化：精细化处理范围）
-    const documentSubscriptions = [
-        // 打开文档：延迟扫描，避免启动时资源竞争
-        vscode.workspace.onDidOpenTextDocument(async document => {
-            if (document.languageId === 'mcfunction') {
-                await delay(500); // 延迟500ms执行
-                await lineProcessor.scanActiveDocument(document);
-            }
-        }),
-
-        // 文本变更：增加防抖，合并短时间内的多次变更
-        createDebouncedListener(vscode.workspace.onDidChangeTextDocument, (event) => {
-            if (event.document.languageId !== 'mcfunction') {return;}
-            lineProcessor.handleTextChanges(event, lineProcessor);
-        }, 300),
-
-        // 保存文档：仅在内容有实际变更时扫描
-        vscode.workspace.onDidSaveTextDocument(async document => {
-            if (document.languageId === 'mcfunction' && document.isDirty) {
-                await lineProcessor.scanActiveDocument(document);
-            }
-        }),
-
-        // 关闭文档：立即清理但不阻塞UI
-        vscode.workspace.onDidCloseTextDocument(document => {
-            if (document.languageId === 'mcfunction') {
-                // 异步清理，避免阻塞关闭操作
-                queueMicrotask(() => {
-                    lineProcessor.handleDocumentClose(document);
-                });
-            }
-        })
-    ];
-
-    context.subscriptions.push(...documentSubscriptions);
     // 预览
     // 实例化命令预览器并激活
     const jsonPreviewer = new LinePreviewManager();
@@ -136,7 +90,7 @@ export async function activate(context: vscode.ExtensionContext) {
 /**
  * 处理文件系统变化（合并创建/删除/修改逻辑）
  */
-async function handleFileChange(uri: vscode.Uri, type: 'create' | 'delete' | 'change') {
+async function handleWorkSpaceChange(uri: vscode.Uri, type: 'create' | 'delete' | 'change') {
     const config = DataLoader.getConfig();
     const ignoreDirs = config["ignore-function-directory"] || [];
     const filePath = uri.fsPath;
@@ -159,8 +113,8 @@ async function handleFileChange(uri: vscode.Uri, type: 'create' | 'delete' | 'ch
             break;
         case 'change':
             // 仅当文件内容变更时重新扫描（避免元数据变化触发）
-            const processor = FileLineIdleSearchProcessor.getInstance();
-            await processor.scanSingleFile(filePath);
+            // const processor = FileLineIdleSearchProcessor.getInstance();
+            // await processor.scanSingleFile(filePath);
             break;
     }
 }
@@ -332,25 +286,6 @@ async function keyCreateFunctionFile(): Promise<void> {
 }
 
 
-// 工具函数：防抖
-function createDebouncedListener<T extends (...args: any[]) => void>(
-    listener: (callback: T) => vscode.Disposable,
-    callback: T,
-    delay: number
-): vscode.Disposable {
-    let timeout: NodeJS.Timeout | undefined;
-    const debounced = (...args: Parameters<T>) => {
-        if (timeout) {clearTimeout(timeout);}
-        timeout = setTimeout(() => callback(...args), delay);
-    };
-    const disposable = listener(debounced as T);
-    return {
-        dispose: () => {
-            disposable.dispose();
-            if (timeout) {clearTimeout(timeout);}
-        }
-    };
-}
 
 // 工具函数：节流
 function createThrottledProcessor<T extends (...args: any[]) => void>(
@@ -367,10 +302,6 @@ function createThrottledProcessor<T extends (...args: any[]) => void>(
     }) as T;
 }
 
-// 工具函数：延迟执行
-function delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 
 /**

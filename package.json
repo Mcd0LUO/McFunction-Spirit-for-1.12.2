@@ -4,7 +4,7 @@
   "displayName": "McFunction Spirit for 1.12.2",
   "description": "A simple Minecraft 1.12.2 function development tool that provides features such as syntax completion and function management.",
   "repository": "https://github.com/Mcd0LUO/McFunction-Spirit-for-1.12.2",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "icon": "icons/main_icon.png",
   "publisher": "Mcd0-LUO",
   "license": "MIT",
@@ -146,6 +146,16 @@
         "mcfunction-spirit.checkScoreboardLength": {
           "type": "boolean",
           "description": "是否检查计分板长度",
+          "default": true
+        },
+        "mcfunction-spirit.json-message-hover-preview": {
+          "type": "boolean",
+          "description": "是否在鼠标悬停时显示json文本预览",
+          "default": true
+        },
+        "mcfunction-spirit.json-message-block-preview": { 
+          "type": "boolean",
+          "description": "是否在鼠标悬停时显示json文本预览",
           "default": true
         }
       }

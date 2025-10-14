@@ -14,8 +14,10 @@ export interface HelperConfig {
     "scoreboards-name-container"?: string[];
     "space-auto-add"?: boolean;
     "check-data-exists"?: true,
-    "check-scoreboard-length"?: true
-
+    "check-scoreboard-length"?: true,
+    "json-message-block-preview"?: boolean,
+    "json-message-hover-preview"?: boolean,
+    "function-reference-preview"?: boolean
 }
 
 export class DataLoader {
@@ -24,7 +26,7 @@ export class DataLoader {
     private functionPaths: string[] = [];
     private scoreboardMap: Record<string, [string, string]> = {};
     private configPath: string = '';
-    private functionsDir: string = '';
+    public functionsDir: string = '';
     private advancementDir: string = '';
     private advancementPaths: string[] = [];
     private is_suffix_space: boolean = false;
@@ -37,7 +39,10 @@ export class DataLoader {
         'ignore-advancement-directory',
         'space-auto-add',
         'check-data-exists',
-        'check-scoreboard-length'
+        'check-scoreboard-length',
+        'json-message-block-preview',
+        'json-message-hover-preview',
+        'function-reference-preview'
 
     ];
 
@@ -172,6 +177,18 @@ export class DataLoader {
                             newConfig[key] = true;
                             configChanged = true;
                             break;
+                        case 'json-message-hover-preview':
+                            newConfig[key] = true;
+                            configChanged = true;
+                            break;
+                        case 'json-message-block-preview':
+                            newConfig[key] = true;
+                            configChanged = true;
+                            break;
+                        case "function-reference-preview":
+                            newConfig[key] = true;
+                            configChanged = true;
+                            break;
                     }
                 }
             }
@@ -235,6 +252,7 @@ export class DataLoader {
             vscode.window.showErrorMessage(`加载函数路径失败: ${error}`);
         }
     }
+
 
 
 
