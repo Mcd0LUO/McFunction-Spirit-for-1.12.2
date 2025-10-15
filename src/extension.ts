@@ -12,6 +12,7 @@ import { LinePreviewManager } from './LineManager/LinePreviewManager';
 import { FileLineCorrection } from './correction/FileLineCorrection';
 import { MinecraftUtils } from './utils/MinecraftUtils';
 import { LineHoverManager } from './LineManager/LineHoverManager';
+import { FileRenameHandler } from './core/FileRenameHandler';
 
 
 // 全局定时器引用，用于插件停用时分销
@@ -82,7 +83,9 @@ export async function activate(context: vscode.ExtensionContext) {
     const lineCorrection = FileLineCorrection.instance;
     lineCorrection.start();
     context.subscriptions.push(lineCorrection);
-
+    // 文件|文件夹重命名
+    const fileRenameHandler = new FileRenameHandler();
+    fileRenameHandler.init();
 
 
 }

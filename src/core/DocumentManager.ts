@@ -454,10 +454,45 @@ export class DocumentManager {
      * @param functionRes 
      * @returns 
      */
-    public getFunctionRefferences(functionRes: string): Map<vscode.Uri, number[]> | null {
-        const funcUri = MinecraftUtils.buildFunctionUri(functionRes);
-        if (!funcUri) { return null; }
-        return this.documentCache.get(funcUri.toString())?.referencedFunctions || null;
+    public getFunctionRefferences(functionRes: string | vscode.Uri): Map<vscode.Uri, number[]> | null {
+        if (typeof functionRes === 'string') { 
+            const funcUri = MinecraftUtils.buildFunctionUri(functionRes);
+            if (!funcUri) { return null; }
+            return this.documentCache.get(funcUri.toString())?.referencedFunctions || null;
+        }
+        if (functionRes instanceof vscode.Uri) { 
+            return this.documentCache.get(functionRes.toString())?.referencedFunctions || null;
+        }
+        return null;
+    
     }
+
+    public getFunctionDispatchs(functionRes: string | vscode.Uri): Map<number, vscode.Uri> | null {
+        if (typeof functionRes === 'string') { 
+            const funcUri = MinecraftUtils.buildFunctionUri(functionRes);
+            if (!funcUri) { return null; }
+            return this.documentCache.get(funcUri.toString())?.dispatchFunctions || null;
+        }
+        if (functionRes instanceof vscode.Uri) { 
+            return this.documentCache.get(functionRes.toString())?.dispatchFunctions || null;
+        }
+        return null;
+
+    }
+
+    /**
+     * 公开方法：重命名文档缓存的键
+     * @param oldUri 旧键uri
+     * @param newUri 新键uri
+     */
+    public renameDocumentKey(oldUri: vscode.Uri, newUri: vscode.Uri) {
+        const oldUriStr = oldUri.toString();
+        if (this.documentCache.has(oldUriStr)) {
+            this.documentCache.get(oldUriStr)!.uri = newUri;
+            this.documentCache.set(newUri.toString(), this.documentCache.get(oldUriStr)!);
+            this.documentCache.delete(oldUriStr);
+        }
+    }
+
 
 }

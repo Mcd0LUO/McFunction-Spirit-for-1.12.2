@@ -1,97 +1,141 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import { FileLineIdleSearchProcessor } from './FileLineIdleSearchProcessor';
+import { DocumentManager } from './DocumentManager';
+import { MinecraftUtils } from '../utils/MinecraftUtils';
 
 export class FileRenameHandler {
-    // private resourceManager: ResourceManager;
-
-    // constructor(resourceManager: ResourceManager) {
-    //     this.resourceManager = resourceManager;
-    // }
 
     /** 初始化文件重命名事件监听 */
     init() {
         // 监听VS Code的文件重命名事件
         vscode.workspace.onDidRenameFiles(async (event) => {
+            // 弹窗是否更新函数引用
+            const updateReferences = await vscode.window.showQuickPick(
+                ['是', '否'],
+                { placeHolder: '是否重命名有关函数引用？' }
+            );
+            if (updateReferences !== '是') {return;};
+            // 显示加载状态
+            const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBar.text = '$(sync~spin) 正在重命名函数...';
+            statusBar.show();
             for (const file of event.files) {
+                console.log(file);
                 await this.handleRename(file.oldUri, file.newUri);
             }
+            statusBar.dispose();
         });
     }
 
     /** 处理单个文件/文件夹重命名 */
-    private async handleRename(oldUri: vscode.Uri, newUri: vscode.Uri) {
+    public async handleRename(oldUri: vscode.Uri, newUri: vscode.Uri) {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(oldUri);
         if (!workspaceFolder) {return;}
+        if (!FileLineIdleSearchProcessor.isScanCompleted) {
+            // 提示用户 正在扫描中
+            vscode.window.showWarningMessage('正在扫描中，无法重命名,请稍等...');
+            // 撤销重命名
+            await vscode.commands.executeCommand('undo');
+        }
 
         // 1. 解析旧路径和新路径（相对于工作区根目录）
-
+        let isFile = false;
         // 2. 判断是文件还是文件夹
-        const stat = await fs.statSync(oldUri.fsPath);
-        const isFile = stat.isFile() ? false : true;
+        try {
+            const stat = await fs.statSync(newUri.fsPath);
+            isFile = stat.isFile();
+        } 
+        catch (error) {
+            console.error(`Error checking file type: ${error}`);
+            return;
+        }
         if (isFile) {
-            // 文件重命名逻辑
-            const oldPath = oldUri.fsPath;
-            const newPath = newUri.fsPath;
-
-            // 获取文件名（不包含扩展名）
-            const oldFileName = oldPath.split('/').pop() || oldPath;
-            const newFileName = newPath.split('/').pop() || newPath;
-
-            // 获取文件扩展名
-            const oldFileExtension = oldFileName.split('.').pop() || '';
-
+            await this.updateFunctionReferences(oldUri, newUri);
+            await this.updateFunctionDispatches(oldUri, newUri);
         }
+        else {
+            // 处理文件夹重命名
+            // 1. 获取旧文件夹和新文件夹的路径字符串
+            const oldFolderPath = oldUri.fsPath;
+            const newFolderPath = newUri.fsPath;
 
+            // 2. 在新文件夹中查找所有函数文件（因为文件夹已经被重命名）
+            const newGlobPattern = new vscode.RelativePattern(newUri, '**/*.mcfunction');
+            const newFunctionUris = await vscode.workspace.findFiles(newGlobPattern);
 
+            // 3. 为每个新找到的函数文件计算其旧URI，然后更新引用
+            for (const newFunctionUri of newFunctionUris) {
+                // 通过路径替换计算旧文件路径
+                const newFilePath = newFunctionUri.fsPath;
+                const oldFilePath = newFilePath.replace(newFolderPath, oldFolderPath);
+                const oldFunctionUri = vscode.Uri.file(oldFilePath);
 
-    }
+                // 更新该文件的引用
+                await this.updateFunctionReferences(oldFunctionUri, newFunctionUri);
+                await this.updateFunctionDispatches(oldFunctionUri, newFunctionUri);
 
-    /** 批量更新引用路径 */
-    private async updateReferences(
-        references: Array<{ uri: vscode.Uri; range: vscode.Range; text: string }>,
-        oldPath: string,
-        newPath: string,
-        isDirectory: boolean
-    ) {
-        for (const ref of references) {
-            // 读取文件内容
-            const document = await vscode.workspace.openTextDocument(ref.uri);
-            const text = document.getText();
-
-            // 替换引用路径（根据是否为文件夹调整替换规则）
-            const newText = isDirectory
-                ? this.replaceDirectoryReferences(text, oldPath, newPath)
-                : this.replaceFileReferences(text, oldPath, newPath);
-
-            // 写入更新后的内容
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(
-                ref.uri,
-                new vscode.Range(0, 0, document.lineCount - 1, Infinity),
-                newText
-            );
-            await vscode.workspace.applyEdit(edit);
+                // 同时需要更新文档管理器中的键映射
+                DocumentManager.getInstance().renameDocumentKey(
+                    oldFunctionUri,
+                    newFunctionUri
+                );
+            }
         }
     }
 
-    /** 替换文件夹路径引用（例如：从 old/func 改为 new/func） */
-    private replaceDirectoryReferences(content: string, oldDir: string, newDir: string): string {
-        // 正则匹配引用路径（需根据Minecraft函数引用格式调整）
-        const regex = new RegExp(`("|')${escapeRegExp(oldDir)}/([^'"]+)('|")`, 'g');
-        return content.replace(regex, `$1${newDir}/$2$3`);
+    /**
+     *  更新函数引用
+     * @param oldUri 旧文件路径
+     * @param newUri  新文件路径
+     * @returns void
+     */
+    private async updateFunctionReferences(oldUri: vscode.Uri, newUri: vscode.Uri) {
+        if (!oldUri.fsPath.endsWith('.mcfunction')) { return; }
+        // 更改本函数被引用的函数中对自身的调用
+        const refferencedFunctions = DocumentManager.getInstance().getFunctionRefferences(oldUri);
+        if (refferencedFunctions) {
+            // 获取自身更新后的调用格式
+            const newFunctionCall = MinecraftUtils.buildFunctionCallByUri(newUri);
+            if (!newFunctionCall) { return; }
+            // 更改所有行
+            for (const [uri, lineNumbers] of refferencedFunctions) {
+                // 获取文档
+                const document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+                if (!document) {; continue; }
+                // 获取要修改的行
+                for (const lineNumber of lineNumbers) {
+                    // 替换函数名
+                    const commands = DocumentManager.getInstance().getCommandSegments(document, lineNumber);
+                    if (commands[0] !== 'function') { return; }
+                    const line = document.lineAt(lineNumber);
+                    const newText = line.text.replace(commands[1], newFunctionCall);
+                    // 更新缓存
+                    commands[1] = newFunctionCall;
+                    // 修改缓存的原key至新key
+                    DocumentManager.getInstance().renameDocumentKey(oldUri, newUri);
+                    // 替换文本
+                    const edit = new vscode.WorkspaceEdit();
+                    edit.replace(document.uri, line.range, newText);
+                    await vscode.workspace.applyEdit(edit);
+                }
+            }
+        }
     }
 
-    /** 替换文件路径引用（例如：从 old.mcfunction 改为 new.mcfunction） */
-    private replaceFileReferences(content: string, oldFile: string, newFile: string): string {
-        const oldFileName = oldFile.split('/').pop() || oldFile;
-        const newFileName = newFile.split('/').pop() || newFile;
-        // 匹配文件名引用（含不带扩展名的情况）
-        const regex = new RegExp(`("|')${escapeRegExp(oldFileName.replace('.mcfunction', ''))}('|")`, 'g');
-        return content.replace(regex, `$1${newFileName.replace('.mcfunction', '')}$2`);
+    private async updateFunctionDispatches(oldUri: vscode.Uri, newUri: vscode.Uri) { 
+        if (!oldUri.fsPath.endsWith('.mcfunction')) { return; }
+        const dispatchedFunctions = DocumentManager.getInstance().getFunctionDispatchs(oldUri);
+        if (dispatchedFunctions) {
+            // 获取自身更新后的调用格式
+            const newFunctionCall = MinecraftUtils.buildFunctionCallByUri(newUri);
+            if (!newFunctionCall) { return; }
+            // 获取文档
+            const document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === oldUri.toString());
+            if (!document) { return; }
+            // 获取要修改的行
+        }
     }
+
 }
 
-// 辅助函数：转义正则特殊字符
-function escapeRegExp(str: string) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
