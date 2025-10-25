@@ -4,6 +4,7 @@ import { BlockNameMap, EntityNameList } from '../utils/EnumLib';
 import { FileLineIdleSearchProcessor } from './FileLineIdleSearchProcessor';
 import { ItemNameMap } from "../utils/EnumLib";
 import { DocumentManager } from './DocumentManager';
+import { text } from 'stream/consumers';
 
 export interface CommandsInfo {
     isExecute: boolean;       // 是否为 execute 命令
@@ -95,10 +96,11 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         context: vscode.CompletionContext
     ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
         // 提取行文本并解析为命令片段（如 "execute @a ~ ~" → ["execute", "@a", "~", "~"]）
-        // const lineText = document.lineAt(position.line).text;
-        // const textBeforeCursor = lineText.substring(0, position.character);
-        const lineCommands = DocumentManager.getInstance().getCommandSegments(document, position.line);
+        const lineText = document.lineAt(position.line).text;
+        const textBeforeCursor = lineText.substring(0, position.character);
+        // const lineCommands = DocumentManager.getInstance().getCommandSegments(document, position.line);
         // console.log(commands);
+        const lineCommands = this.extractCommand(textBeforeCursor);
         // 无命令片段时，返回根命令补全
         if (!lineCommands || lineCommands.length === 0) {
             return this.provideRootCompletions('');
@@ -107,11 +109,10 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         // 找到当前活跃的命令（处理多层嵌套 execute，优先处理最内层未完成的命令）
         const activeCommand = this.findActiveCommand(lineCommands);
         const { isExecute, isComplete, currentCommands, paramStage } = activeCommand;
-
         // 活跃命令是 execute 且未完整：补全 execute 自身的参数（实体、x、y、z）
         if (isExecute && !isComplete) {
             const executeProvider = CommandRegistry.getProvider('execute');
-            return executeProvider ? executeProvider.provideCommandCompletions(currentCommands, lineCommands, document, position) : [];
+            return executeProvider ? executeProvider.provideCommandCompletions(currentCommands,lineCommands, document, position) : [];
         }
 
         // 活跃命令是 execute 且已完整：补全子命令（根命令，如 say、scoreboard 或嵌套的 execute）
@@ -335,6 +336,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
     /**
      * 抽象方法：子类需实现具体命令的补全逻辑
      * @param commands 命令片段数组
+     * @param lineCommands 当前行命令片段数组
      * @param document 当前文档
      * @param position 光标位置
      * @returns 补全项数组
@@ -492,14 +494,17 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
 
         if (trimmedTextLower.endsWith('tag=')) {
             return Array.from(FileLineIdleSearchProcessor.TAGS).map(tag =>
-                this.createCompletionItem(
+            {
+                console.log(tag);
+
+                return this.createCompletionItem(
                     tag,
                     `标签: ${tag}`,
                     `${tag}`,
                     true,
                     vscode.CompletionItemKind.Constant
-                )
-            );
+                );
+        });
         }
 
         // 上下文3：type= 后补全实体类型（如 type=Zombie）

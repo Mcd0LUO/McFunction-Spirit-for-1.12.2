@@ -23,7 +23,7 @@ export class FunctionCompletionProvider extends MinecraftCommandCompletionProvid
             case 3:
                 return this.provideConditionCompletions();
             case 4:
-                return this.createSelectorArgumentsCompletion(commands[3],false);
+                return this.createSelectorArgumentsCompletion(commands[3],true);
             default:
                 return [];
         }

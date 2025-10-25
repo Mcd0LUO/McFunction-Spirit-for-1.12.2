@@ -4,7 +4,7 @@
   "displayName": "McFunction Spirit for 1.12.2",
   "description": "A simple Minecraft 1.12.2 function development tool that provides features such as syntax completion and function management.",
   "repository": "https://github.com/Mcd0LUO/McFunction-Spirit-for-1.12.2",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "icon": "icons/main_icon.png",
   "publisher": "Mcd0-LUO",
   "license": "MIT",
@@ -32,6 +32,16 @@
           "light": "icons/light.png",
           "dark": "icons/dark.png"
         },
+        "configuration": "./syntaxes/language-configuration.json"
+      },
+      {
+        "id": "Minecraft Advancemnets Json",
+        "aliases": [
+          "Minecraft Advancements Json"
+        ],
+        "extensions": [
+          "**/advancements/**/*.json"
+        ],
         "configuration": "./syntaxes/language-configuration.json"
       }
     ],
@@ -108,57 +118,7 @@
     "configuration": {
       "type": "object",
       "title": "McFunction Spirit 配置",
-      "properties": {
-        "mcfunction-spirit.ignoreFunctionDirectory": {
-          "type": "array",
-          "description": "需要忽略的函数目录列表",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "mcfunction-spirit.ignoreAdvancementDirectory": {
-          "type": "array",
-          "description": "需要忽略的进度目录列表",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "mcfunction-spirit.scoreboardsNameContainer": {
-          "type": "array",
-          "description": "包含计分板定义的函数文件列表",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "mcfunction-spirit.spaceAutoAdd": {
-          "type": "boolean",
-          "description": "是否在命令补全后自动添加空格",
-          "default": true
-        },
-        "mcfunction-spirit.checkDataExists": {
-          "type": "boolean",
-          "description": "是否检查数据[记分板|函数]是否存在",
-          "default": true
-        },
-        "mcfunction-spirit.checkScoreboardLength": {
-          "type": "boolean",
-          "description": "是否检查计分板长度",
-          "default": true
-        },
-        "mcfunction-spirit.json-message-hover-preview": {
-          "type": "boolean",
-          "description": "是否在鼠标悬停时显示json文本预览",
-          "default": true
-        },
-        "mcfunction-spirit.json-message-block-preview": { 
-          "type": "boolean",
-          "description": "是否在鼠标悬停时显示json文本预览",
-          "default": true
-        }
-      }
+      "properties": {}
     },
     "jsonValidation": [
       {
@@ -185,5 +145,8 @@
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.25.1",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
   }
 }

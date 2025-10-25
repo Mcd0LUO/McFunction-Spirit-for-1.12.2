@@ -13,6 +13,8 @@ import { FileLineCorrection } from './correction/FileLineCorrection';
 import { MinecraftUtils } from './utils/MinecraftUtils';
 import { LineHoverManager } from './LineManager/LineHoverManager';
 import { FileRenameHandler } from './core/FileRenameHandler';
+import { AdvancementCompletionProvider } from './completionProvider/AdvancementCompletionProvider';
+import { AdvancementHelper } from './core/AdvancemnetHelper';
 
 
 // 全局定时器引用，用于插件停用时分销
@@ -86,6 +88,20 @@ export async function activate(context: vscode.ExtensionContext) {
     // 文件|文件夹重命名
     const fileRenameHandler = new FileRenameHandler();
     fileRenameHandler.init();
+
+    // 进度文件补全
+    // 实例化补全处理器
+    const advCompletionProvider = new AdvancementHelper();
+    const dispose_adv = vscode.languages.registerCompletionItemProvider(
+        { pattern: "**/*.json" }, // 匹配进度文件
+        {
+            provideCompletionItems(document, position) {
+                return advCompletionProvider.getCompletionItems(document, position);
+            }
+        },
+        '"', ':', ',' // 触发补全的字符
+    );
+    context.subscriptions.push(dispose_adv);
 
 
 }

@@ -318,9 +318,9 @@ export class DocumentManager {
      * @returns 标签名（不存在则返回null）
      */
     private extractTagFromLine(segments: string[]): string | null {
-        // 匹配格式：scoreboard tag <target> ... → 提取<target>作为标签名
-        if (segments.length >= 3 && segments[0] === 'scoreboard' && segments[1] === 'tag') {
-            return segments[2];
+        // 匹配格式：scoreboard players tag <target> ... → 提取<target>作为标签名
+        if (segments.length >= 6 && segments[0] === 'scoreboard' && segments[1] === 'players' && segments[2] === 'tag') {
+            return segments[5];
         }
         return null;
     }
