@@ -67,6 +67,7 @@ export class LinkProvider implements vscode.DocumentLinkProvider {
     private static readonly CACHE_TTL = 5000;
 
     constructor() {
+        // 文档变更
         vscode.workspace.onDidChangeTextDocument(event => {
             const uriStr = event.document.uri.toString();
             const docVersion = event.document.version;
