@@ -20,7 +20,7 @@ export class FileLineIdleSearchProcessor {
     public static readonly MAX_SCANNED_FILE_SIZE = 1024 * 1024;
 
     /** 全局标签集合：存储所有扫描到的 scoreboard tag 名称 */
-    public static TAGS: Set<string> = new Set();
+    public static TAGS: Map<string, number> = new Map();
     /** 全局计分板映射：存储计分板目标名称与 [类型, 显示名, 创建uri, 创建引用计数] 的映射关系 */
     public static SCOREBOARDS: Map<string, [string, string, vscode.Uri, number]> = new Map();
 
@@ -175,7 +175,7 @@ export class FileLineIdleSearchProcessor {
      * 提供外部访问标签集合的接口（如补全提供者）
      * @returns 标签名称集合
      */
-    public static getTags(): Set<string> {
+    public static getTags(): Map<string, number> {
         return FileLineIdleSearchProcessor.TAGS;
     }
 
@@ -198,34 +198,4 @@ export class FileLineIdleSearchProcessor {
     public dispose() {
         this.clearAllCaches();
     }
-}
-
-/**
- * 延迟执行函数
- * 用于延迟处理事件，避免高频操作导致的性能问题
- * @param ms 延迟毫秒数
- * @returns 延迟完成的Promise
- */
-function delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * 创建防抖事件监听器
- * 包装事件监听器，确保短时间内多次触发时只执行最后一次
- * @param listener 原始事件监听器
- * @param callback 事件处理函数
- * @param delay 防抖延迟（毫秒）
- * @returns VS Code 可释放对象（用于取消订阅）
- */
-function createDebouncedListener<T extends (...args: any[]) => void>(
-    listener: (callback: T) => vscode.Disposable,
-    callback: T,
-    delay: number
-): vscode.Disposable {
-    let timeout: NodeJS.Timeout;
-    return listener(((...args) => {
-        clearTimeout(timeout); // 清除上一次未执行的延迟
-        timeout = setTimeout(() => callback(...args), delay); // 重新设置延迟
-    }) as T);
 }

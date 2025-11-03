@@ -47,6 +47,12 @@
             "type": "boolean",
             "description": "是否在鼠标悬停时预览函数引用",
             "default": true
+        },
+        "file-link-provide": {
+            "type": "boolean",
+            "description": "是否提供文件链接",
+            "default": true
+
         }
     },
     "required": [
@@ -57,7 +63,8 @@
         "check-scoreboard-length",
         "json-message-hover-preview",
         "json-message-block-preview",
-        "function-reference-preview"
+        "function-reference-preview",
+        "file-link-provide"
     ],
     "additionalProperties": false
 }

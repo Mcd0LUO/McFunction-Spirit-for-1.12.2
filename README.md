@@ -14,9 +14,6 @@ Minecraft 1.12.2 版本函数开发者的助手
 
 Author: Mcd0_LUO(小罗)
 
-## 更新历史
-
-详见更改日志
 
 ## 注意事项
 
@@ -33,7 +30,15 @@ Author: Mcd0_LUO(小罗)
 请将其 **文件夹** 添加到 **"HelperConfig.json"** 中的  **["ignore-function-directory"]** ，避免不必要的性能开销。    
     eg: "ignore-function-directory" : ["sys/test", "main", "api/cycle/main"]
 
-其它配置详见插件详情界面-功能-设置
+插件其它功能的开关都在**HelperConfig.json**中,修改完成后，请打开任意函数文件按 "ctrl + r" 重新加载
+
+插件其它功能的开关都在**HelperConfig.json**中,修改完成后，请打开任意函数文件按 "ctrl + r" 重新加载
+
+
+## 更新历史
+
+详见更改日志
+
 
 ## Known Issues
 

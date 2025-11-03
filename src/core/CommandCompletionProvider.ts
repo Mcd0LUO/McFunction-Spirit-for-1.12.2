@@ -454,7 +454,14 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         suffix: string = ''
     ): vscode.CompletionItem[] {
         const trimmedText = text.trim();
-        const trimmedTextLower = trimmedText.toLowerCase();
+        // 上下文4：空输入时补全选择器本身（如直接输入 @ 时）
+        if (trimmedText === '') {
+            return this.createSelectorCompletion(triggerNext, suffix);
+        }
+        if (trimmedText.length <= 2) {return [];}
+        const selectorArgs = trimmedText.slice(3).split(',');
+        const lastSelectorArg = selectorArgs.at(-1);
+
         // 上下文1：选择器参数开始（如 @a 或 @e, 后需要补全参数）
         // if (triggerNext) {
         //     suffix += " ";
@@ -462,10 +469,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         if (triggerNext === true && suffix === '') {
             suffix = " ";
         }
-
-        if (trimmedText.endsWith('[') || trimmedTextLower.endsWith(',')) {
-
-
+        if (!lastSelectorArg) {
 
             return MinecraftCommandCompletionProvider.SELECTOR_ARGUMENTS.map(arg =>
                 this.createCompletionItem(
@@ -478,12 +482,12 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
             );
         }
         // 上下文2：score_ 前缀后补全计分板名称（如 score_money=10）
-        if (trimmedTextLower.endsWith('score_') || trimmedTextLower.endsWith('score')) {
+        if (lastSelectorArg.startsWith('score_') || lastSelectorArg.startsWith('score')) {
             const scoreboardNames = FileLineIdleSearchProcessor.getScoreboards();
             if (!scoreboardNames) { return []; }
             return Array.from(scoreboardNames.entries()).map(([name, data]) =>
                 this.createCompletionItem(
-                    `score_${name}`,
+                    `_${name}`,
                     `类型: ${data[0]} 注释: ${data[1]}`,
                     `score_${name}`,
                     triggerNext,
@@ -492,10 +496,9 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
             );
         }
 
-        if (trimmedTextLower.endsWith('tag=')) {
-            return Array.from(FileLineIdleSearchProcessor.TAGS).map(tag =>
+        if (lastSelectorArg.startsWith('tag=')) {
+            return Array.from(FileLineIdleSearchProcessor.TAGS).map(([tag, count]) =>
             {
-                console.log(tag);
 
                 return this.createCompletionItem(
                     tag,
@@ -508,7 +511,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
         }
 
         // 上下文3：type= 后补全实体类型（如 type=Zombie）
-        if (trimmedTextLower.endsWith('type=')) {
+        if (lastSelectorArg.startsWith('type=')) {
             return EntityNameList.all.map(entity =>
                 this.createCompletionItem(
                     entity.name,
@@ -519,13 +522,20 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
                 )
             );
         }
-
-        // 上下文4：空输入时补全选择器本身（如直接输入 @ 时）
-        if (trimmedText === '') {
-            return this.createSelectorCompletion(triggerNext, suffix);
+        if (lastSelectorArg.endsWith('=')) {
+            return [];
         }
 
-        return [];
+
+        return MinecraftCommandCompletionProvider.SELECTOR_ARGUMENTS.map(arg =>
+            this.createCompletionItem(
+                arg.label,
+                arg.detail,
+                `${arg.insertText}`,
+                triggerNext,
+                vscode.CompletionItemKind.Enum
+            )
+        );
     }
 
     // 创建物品补全项
@@ -585,20 +595,26 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
 
     /**
      * 创建标签补全（新增方法，处理tag操作的标签名称补全）
-     * @param currentInput 当前输入
      * @returns 补全项数组
      */
-    public createTagCompletion(currentInput: string): vscode.CompletionItem[] {
+    public createTagCompletion(document: vscode.TextDocument,
+        position: vscode.Position,
+        inputLength: number,
+        triggerNext: boolean = true): vscode.CompletionItem[] {
         // 实际应用中可从数据加载器获取已存在的标签
-        const sampleTags = FileLineIdleSearchProcessor.getTags();
-        return Array.from(sampleTags)
-            .map(tag => this.createCompletionItem(
+        const range = this.getWordRange(document, position, inputLength);
+
+        return Array.from(FileLineIdleSearchProcessor.TAGS).map(([tag, count]) => {
+
+            return this.createCompletionItem(
                 tag,
-                `玩家标签: ${tag}`,
-                `${tag}${MinecraftCommandCompletionProvider.global_sufiix}`,
-                false,
-                vscode.CompletionItemKind.Constant
-            ));
+                `标签: ${tag}`,
+                `${tag}`,
+                triggerNext,
+                vscode.CompletionItemKind.Enum,
+                range
+            );
+        });
     }
 
     public createEntityNameCompletion(triggerNext: boolean): vscode.CompletionItem[] {

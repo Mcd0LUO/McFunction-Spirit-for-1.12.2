@@ -198,7 +198,7 @@ export class ScoreboardCompletionProvider extends MinecraftCommandCompletionProv
             case 5:
                 // 标签操作需要标签名称；其他操作需要数值
                 if (operation === 'tag') {
-                    return this.createTagCompletion(currentInput); // 假设存在标签补全方法
+                    return this.createTagCompletion(document,position,currentInput.length); // 假设存在标签补全方法
                 }
                 // 需要数值参数的操作
                 if (['add', 'set', 'remove'].includes(operation)) {

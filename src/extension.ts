@@ -48,7 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // 注册文档链接提供者
     const selector: vscode.DocumentSelector = { language: 'mcfunction' };
     context.subscriptions.push(
-        vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider())
+        vscode.languages.registerDocumentLinkProvider(selector, LinkProvider.getInstance())
     );
 
     // 创建文件系统监视器（优化：仅监听函数目录，减少监听范围）

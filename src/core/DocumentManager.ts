@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { MainCompletionProvider } from './MainCompletionProvider';
 import { FileLineIdleSearchProcessor } from './FileLineIdleSearchProcessor';
 import { MinecraftUtils } from '../utils/MinecraftUtils';
+import { scryptSync } from 'crypto';
 
 /**
  * 每行命令解析结果的缓存结构
@@ -90,20 +91,44 @@ export class DocumentManager {
         event.contentChanges.forEach(change => {
             const startLine = change.range.start.line;
             const endLine = change.range.end.line;
+            // 计算变更前后的行数差（偏移量）
+            const oldLines = endLine - startLine + 1; // 变更前的行数
+            const newLines = change.text.split('\n').length; // 变更后的行数
+            const deltaLines = newLines - oldLines; // 偏移量（正数插入，负数删除）
 
-            // 处理从startLine到endLine的所有行
+            // 1. 先处理变更范围内的行（清理旧缓存并重新解析）
+            // 原清理逻辑替换为：
             for (let line = startLine; line <= endLine; line++) {
-                if (line >= event.document.lineCount) { continue; } // 跳过超出文档行数的无效行
+                if (line >= event.document.lineCount) { continue; }
+                this.cleanupLineCache(cache, event.document, line); // 调用模块化清理函数
 
-                // 清理该行的旧缓存
-                cache.lineCache.delete(line);
-                cache.lineTagMap.delete(line);
-
-                // 重新解析该行并更新缓存
+                // 重新解析该行（保持原有逻辑）
                 const lineText = event.document.lineAt(line).text;
                 const trimmedLineText = lineText.trim();
-                if (trimmedLineText.startsWith('#') || !trimmedLineText) {return;}
+                if (trimmedLineText.startsWith('#') || !trimmedLineText) { return; }
                 this.processLine(event.document, line);
+            }
+
+            // 2. 处理行号偏移：调整变更范围外的缓存行号
+            if (deltaLines !== 0) {
+                // 需要调整的行号：所有 > endLine 的行
+                // 先收集需要调整的键值对，避免迭代中修改Map导致异常
+                const lineCacheEntries = Array.from(cache.lineCache.entries()).filter(([line]) => line > endLine);
+                const lineTagEntries = Array.from(cache.lineTagMap.entries()).filter(([line]) => line > endLine);
+                const lineScoreboardEntries = Array.from(cache.lineScoreboardMap.entries()).filter(([line]) => line > endLine);
+                const dispatchEntries = Array.from(cache.dispatchFunctions.entries()).filter(([line]) => line > endLine);
+
+                // 删除旧行号的缓存
+                lineCacheEntries.forEach(([line]) => cache.lineCache.delete(line));
+                lineTagEntries.forEach(([line]) => cache.lineTagMap.delete(line));
+                lineScoreboardEntries.forEach(([line]) => cache.lineScoreboardMap.delete(line));
+                dispatchEntries.forEach(([line]) => cache.dispatchFunctions.delete(line));
+
+                // 添加偏移后的新行号缓存
+                lineCacheEntries.forEach(([line, value]) => cache.lineCache.set(line + deltaLines, value));
+                lineTagEntries.forEach(([line, value]) => cache.lineTagMap.set(line + deltaLines, value));
+                lineScoreboardEntries.forEach(([line, value]) => cache.lineScoreboardMap.set(line + deltaLines, value));
+                dispatchEntries.forEach(([line, value]) => cache.dispatchFunctions.set(line + deltaLines, value));
             }
         });
 
@@ -242,7 +267,11 @@ export class DocumentManager {
         const cache = this.getOrCreateCache(document);
         if (tag) {
             cache.lineTagMap.set(lineNumber, tag); // 更新行-标签映射
-            FileLineIdleSearchProcessor.TAGS.add(tag); // 添加到全局标签集合
+            // 如果已经存在
+            if (FileLineIdleSearchProcessor.TAGS.has(tag)) {
+                FileLineIdleSearchProcessor.TAGS.set(tag, FileLineIdleSearchProcessor.TAGS.get(tag)! + 1); // 更新标签计数
+            }
+            FileLineIdleSearchProcessor.TAGS.set(tag, 1); // 添加到全局标签集合
         } else {
             cache.lineTagMap.delete(lineNumber); // 移除无效标签映射
         }
@@ -251,15 +280,6 @@ export class DocumentManager {
         const scoreboard = this.extractScoreboardFromLine(commandSegments);
         if (scoreboard) {
             const [name, type, display] = scoreboard;
-            // 检查是否已存在同一计分板在该行中
-            const oldName = cache.lineScoreboardMap.get(lineNumber);
-            if (oldName === name && FileLineIdleSearchProcessor.SCOREBOARDS.get(name)?.[0] === type && FileLineIdleSearchProcessor.SCOREBOARDS.get(name)?.[1] === display) {
-                // console.log(`第 ${lineNumber} 存在 + ${name} + 计分板`);
-                return; // 已存在，跳过
-            }
-            if (oldName) {
-                this.removeScoreboardIfNoOtherOccurrences(oldName); // 移除旧计分板
-            }
             cache.lineScoreboardMap.set(lineNumber, name); // 更新行-计分板映射
             let originRefferences = FileLineIdleSearchProcessor.SCOREBOARDS.get(name)?.[3];
             if (originRefferences) {
@@ -395,18 +415,12 @@ export class DocumentManager {
     private removeTagIfNoOtherOccurrences(tag: string, uriStr: string, line: number): void {
         let hasOtherOccurrences = false;
 
-        // 遍历所有文档缓存，检查是否有其他引用
-        this.documentCache.forEach((cache, currentUriStr) => {
-            if (currentUriStr === uriStr) {
-                // 检查同文档其他行是否有引用
-                cache.lineTagMap.forEach((t, l) => {
-                    if (t === tag && l !== line) { hasOtherOccurrences = true; }
-                });
-            } else {
-                // 检查其他文档是否有引用
-                if (Array.from(cache.lineTagMap.values()).includes(tag)) { hasOtherOccurrences = true; }
-            }
-        });
+        let tagCount = FileLineIdleSearchProcessor.TAGS.get(tag);
+        if (tagCount === undefined) { tagCount = 0; }
+        tagCount -= 1;
+        if (tagCount <= 0) {
+            hasOtherOccurrences = false;
+        }
 
         // 若没有其他引用，从全局集合中移除
         if (!hasOtherOccurrences) {
@@ -429,24 +443,16 @@ export class DocumentManager {
         if (scoreboardCount === undefined) { scoreboardCount = 0; }
         scoreboardCount -= 1;
         if (scoreboardCount <= 0) {
-            hasOtherOccurrences = true;
+            hasOtherOccurrences = false;
         }
 
         // 若没有其他引用，从全局集合中移除
         if (!hasOtherOccurrences) {
-            console.log("移除" ,scoreboard);
+            // console.log("移除" ,scoreboard);
             FileLineIdleSearchProcessor.SCOREBOARDS.delete(scoreboard);
         }
     }
 
-    /**
-     * 延迟执行辅助函数
-     * @param ms 延迟毫秒数
-     * @returns 延迟完成的Promise
-     */
-    private delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
 
 
     /**
@@ -491,6 +497,55 @@ export class DocumentManager {
             this.documentCache.get(oldUriStr)!.uri = newUri;
             this.documentCache.set(newUri.toString(), this.documentCache.get(oldUriStr)!);
             this.documentCache.delete(oldUriStr);
+        }
+    }
+
+
+    /**
+ * 清理指定文档缓存中特定行的所有关联缓存
+ * 包括行解析结果、标签、计分板及函数调用关联
+ * @param cache 目标文档缓存
+ * @param document 关联的文档对象
+ * @param lineNumber 需要清理的行号
+ */
+    private cleanupLineCache(
+        cache: DocumentCache,
+        document: vscode.TextDocument,
+        lineNumber: number
+    ): void {
+        // 1. 清理行解析结果缓存
+        cache.lineCache.delete(lineNumber);
+
+        // 2. 清理标签缓存并检查全局引用
+        const tag = cache.lineTagMap.get(lineNumber);
+        if (tag) {
+            cache.lineTagMap.delete(lineNumber);
+            this.removeTagIfNoOtherOccurrences(tag, cache.uri.toString(), lineNumber);
+        }
+
+        // 3. 清理计分板缓存并检查全局引用
+        const scoreboard = cache.lineScoreboardMap.get(lineNumber);
+        if (scoreboard) {
+            cache.lineScoreboardMap.delete(lineNumber);
+            this.removeScoreboardIfNoOtherOccurrences(scoreboard);
+        }
+
+        // 4. 清理函数调用关联（自身调用的函数）
+        const dispatchedFuncUri = cache.dispatchFunctions.get(lineNumber);
+        if (dispatchedFuncUri) {
+            // 移除被调用函数对当前文档的引用记录
+            const targetCache = this.documentCache.get(dispatchedFuncUri.toString());
+            if (targetCache) {
+                const refLines = targetCache.referencedFunctions.get(document.uri) || [];
+                const updatedLines = refLines.filter(line => line !== lineNumber);
+
+                if (updatedLines.length > 0) {
+                    targetCache.referencedFunctions.set(document.uri, updatedLines);
+                } else {
+                    targetCache.referencedFunctions.delete(document.uri);
+                }
+            }
+            cache.dispatchFunctions.delete(lineNumber);
         }
     }
 

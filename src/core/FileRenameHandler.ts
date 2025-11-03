@@ -21,7 +21,6 @@ export class FileRenameHandler {
             statusBar.text = '$(sync~spin) 正在重命名函数...';
             statusBar.show();
             for (const file of event.files) {
-                console.log(file);
                 await this.handleRename(file.oldUri, file.newUri);
             }
             statusBar.dispose();

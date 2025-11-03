@@ -1,332 +1,719 @@
 import * as vscode from 'vscode';
-import { MainCompletionProvider } from "../core/MainCompletionProvider";
+import { MainCompletionProvider } from '../core/MainCompletionProvider';
 import { MinecraftUtils } from '../utils/MinecraftUtils';
 import { DocumentManager } from './DocumentManager';
+import { DataLoader } from './DataLoader';
 
-/** 命令配置接口，定义不同命令的解析规则 */
-interface CommandConfig {
-    pathIndex: number;
-    folder: string;
-    extension: string;
-    validActions?: string[];
-    paramValidator?: RegExp;
+/** 命令策略接口：定义不同命令的链接生成规则（策略模式核心） */
+interface CommandLinkStrategy {
+    command: string;
+    matchRegex: RegExp;
+    validate(tokens: string[], activeCommand: ActiveCommandInfo): boolean;
+    getPathTokenIndex(startTokenIndex: number): number;
+    validatePath(path: string): boolean;
+    buildTargetUri(path: string): Promise<vscode.Uri | null>; // 异步避免阻塞
+    getTooltip(path: string): string;
 }
 
-/**
- * 文档链接提供器（优化版）
- * 核心优化：提升链接生成和响应速度，减少不必要的计算开销
- */
-export class LinkProvider implements vscode.DocumentLinkProvider {
-    /** 命令配置映射表 */
-    private static readonly COMMAND_CONFIGS: Record<string, CommandConfig> = {
-        'function': {
-            pathIndex: 1,
-            folder: 'functions',
-            extension: '.mcfunction',
-            paramValidator: /^[^ ]+$/
-        },
-        'advancement': {
-            pathIndex: 4,
-            validActions: ['grant', 'revoke', 'test'],
-            folder: 'advancements',
-            extension: '.json',
-            paramValidator: /^[^:]+:[^ ]+$/
-        }
+/** 活跃命令信息 */
+interface ActiveCommandInfo {
+    currentCommands: string[];
+    isExecute: boolean;
+    isComplete: boolean;
+}
+
+/** 令牌信息（含原始位置，避免反查） */
+interface TokenWithPosition {
+    value: string;
+    start: number; // 令牌在commandText中的起始位置（相对commandText）
+    end: number;   // 令牌在commandText中的结束位置（相对commandText）
+}
+
+/** 链接元数据（缓存用，不依赖行号和缩进） */
+interface LinkMetadata {
+    path: string;
+    command: string;
+    tokenStart: number; // 路径token在commandText中的起始位置（相对commandText）
+    tokenEnd: number;   // 路径token在commandText中的结束位置（相对commandText）
+}
+
+/** 文档级缓存：隔离不同文档的缓存，提升查找效率 */
+interface DocumentCache {
+    metaCache: LRUCache<number, LinkMetadata[]>; // key: 行号
+    tokenCache: LRUCache<number, TokenWithPosition[]>; // key: 行号
+    lastAccessed: number; // 最后访问时间（用于清理长期未使用的文档缓存）
+}
+
+/** 缓存管理器：集中管控元数据缓存、令牌缓存、路径缓存（优化查找+LRU淘汰） */
+class LinkCacheManager {
+    /** 全局文档缓存：key = 文档URI.fsPath（更高效的键），value = 文档级缓存 */
+    private docCaches = new Map<string, DocumentCache>();
+    /** 路径→URI缓存（全局共享）：key = 命令名:路径（小写），value = 异步URI Promise */
+    private pathUriCache = new LRUCache<string, Promise<vscode.Uri | null>>(1000); // LRU上限1000
+
+
+    /** 缓存配置（平衡性能与内存） */
+    private static readonly CACHE_CONFIG = {
+        metaCacheSize: 500,    // 单文档元数据缓存上限（行）
+        tokenCacheSize: 500,   // 单文档令牌缓存上限（行）
+        docCacheTTL: 3600000,  // 文档缓存过期时间（1小时，无访问则清理）
+        metaCacheTTL: 300000,  // 元数据缓存TTL（5分钟）
+        tokenCacheTTL: 60000,  // 令牌缓存TTL（1分钟）
+        pathUriCacheTTL: 600000// 路径URI缓存TTL（10分钟）
     };
 
-    /** 支持的命令集合 */
-    private static readonly SUPPORTED_COMMANDS = new Set(Object.keys(LinkProvider.COMMAND_CONFIGS));
+    /** 生成文档缓存键（用fsPath更高效，避免URI.toString()冗余） */
+    private getDocKey(uri: vscode.Uri): string {
+        return uri.fsPath;
+    }
 
-    /** 
-     * 预编译正则表达式（优化点1）
-     * 避免每次调用时重复创建正则对象，提升匹配速度
-     */
-    private static readonly COMMAND_REGEX_MAP = new Map<string, RegExp>(
-        Array.from(LinkProvider.SUPPORTED_COMMANDS).map(cmd =>
-            [cmd, new RegExp(`(^|\\s)${cmd}\\b`, 'i')]
-        )
-    );
+    /** 获取/初始化文档级缓存（隔离不同文档，O(1)访问） */
+    private getDocCache(uri: vscode.Uri): DocumentCache {
+        const docKey = this.getDocKey(uri);
+        let docCache = this.docCaches.get(docKey);
 
-    /** 
-     * 多级缓存（优化点2）
-     * 1. 行文本 → 令牌数组缓存
-     * 2. 行 → 链接结果缓存
-     * 3. 路径 → 解析结果缓存
-     */
-    private tokenCache = new Map<string, string[]>(); // key: 行文本哈希
-    private linkCache = new Map<string, vscode.DocumentLink[]>(); // key: 缓存键
-    private pathParseCache = new Map<string, [string, string] | null>(); // key: 路径字符串
+        if (!docCache) {
+            // 初始化文档缓存（LRU淘汰，避免单文档缓存膨胀）
+            docCache = {
+                metaCache: new LRUCache<number, LinkMetadata[]>(LinkCacheManager.CACHE_CONFIG.metaCacheSize),
+                tokenCache: new LRUCache<number, TokenWithPosition[]>(LinkCacheManager.CACHE_CONFIG.tokenCacheSize),
+                lastAccessed: Date.now()
+            };
+            this.docCaches.set(docKey, docCache);
 
-    /** 文档版本跟踪 */
-    private documentVersions = new Map<string, number>();
+            // 定期清理长期未访问的文档缓存（防止内存泄漏）
+            this.scheduleDocCacheCleanup();
+        } else {
+            // 更新最后访问时间，避免被误清理
+            docCache.lastAccessed = Date.now();
+        }
 
-    /** 
-     * 延长缓存过期时间（优化点3）
-     * 从4000ms调整为10000ms，减少高频操作时的重复计算
-     */
-    private static readonly CACHE_TTL = 5000;
+        return docCache;
+    }
 
-    constructor() {
-        // 文档变更
-        vscode.workspace.onDidChangeTextDocument(event => {
-            const uriStr = event.document.uri.toString();
-            const docVersion = event.document.version;
-            this.documentVersions.set(uriStr, docVersion);
+    /** 定期清理过期文档缓存（每30分钟执行一次） */
+    private scheduleDocCacheCleanup(): void {
+        if (this.cleanupTimer) {return;}
+        this.cleanupTimer = setInterval(() => {
+            const now = Date.now();
+            const expiredThreshold = now - LinkCacheManager.CACHE_CONFIG.docCacheTTL;
 
-            // 优化点4：只清理变更行的缓存，而非全文档
-            const changedLines = new Set<number>();
-            event.contentChanges.forEach(change => {
-                const startLine = event.document.positionAt(change.rangeOffset).line;
-                const endLine = event.document.positionAt(change.rangeOffset + change.rangeLength).line;
-                for (let i = startLine; i <= endLine; i++) {
-                    changedLines.add(i);
+            this.docCaches.forEach((docCache, docKey) => {
+                if (docCache.lastAccessed < expiredThreshold) {
+                    this.docCaches.delete(docKey);
+                    this.log(`清理过期文档缓存：${docKey}`);
                 }
             });
+        }, 1800000); // 30分钟
+    }
 
-            // 清理变更行的缓存
-            const prefix = `${uriStr}:`;
-            this.linkCache.forEach((_, key) => {
-                if (key.startsWith(prefix)) {
-                    const lineNum = parseInt(key.split(':')[1], 10);
-                    if (changedLines.has(lineNum)) {
-                        this.linkCache.delete(key);
-                    }
+    private cleanupTimer?: NodeJS.Timeout;
+
+    // ------------------------------ 缓存读写（优化查找效率） ------------------------------
+    getMetaCache(uri: vscode.Uri, lineNumber: number): LinkMetadata[] | undefined {
+        return this.getDocCache(uri).metaCache.get(lineNumber);
+    }
+
+    setMetaCache(uri: vscode.Uri, lineNumber: number, meta: LinkMetadata[]): void {
+        const docCache = this.getDocCache(uri);
+        docCache.metaCache.set(lineNumber, meta);
+        // 单独设置过期时间（LRU+TTL双重保障）
+        setTimeout(() => {
+            docCache.metaCache.delete(lineNumber);
+        }, LinkCacheManager.CACHE_CONFIG.metaCacheTTL);
+    }
+
+    getTokenCache(uri: vscode.Uri, lineNumber: number): TokenWithPosition[] | undefined {
+        return this.getDocCache(uri).tokenCache.get(lineNumber);
+    }
+
+    setTokenCache(uri: vscode.Uri, lineNumber: number, tokens: TokenWithPosition[]): void {
+        const docCache = this.getDocCache(uri);
+        docCache.tokenCache.set(lineNumber, tokens);
+        setTimeout(() => {
+            docCache.tokenCache.delete(lineNumber);
+        }, LinkCacheManager.CACHE_CONFIG.tokenCacheTTL);
+    }
+
+    async getPathUriCache(path: string, command: string): Promise<vscode.Uri | null> {
+        const key = `${command.toLowerCase()}:${path.toLowerCase()}`;
+        let uriPromise = this.pathUriCache.get(key);
+
+        if (!uriPromise) {
+            // 异步构建URI，避免阻塞主线程
+            uriPromise = (async () => {
+                try {
+                    const strategy = LinkProvider.getInstance().getStrategyByCommand(command);
+                    return strategy ? await strategy.buildTargetUri(path) : null;
+                } catch (err) {
+                    this.log(`构建URI失败：${command} -> ${path}`, err);
+                    return null;
                 }
-            });
+            })();
+            this.pathUriCache.set(key, uriPromise);
+            // 过期自动删除
+            setTimeout(() => {
+                this.pathUriCache.delete(key);
+            }, LinkCacheManager.CACHE_CONFIG.pathUriCacheTTL);
+        }
 
-            // 清理受影响的令牌缓存（通过行文本哈希关联）
-            changedLines.forEach(lineNum => {
-                const lineText = event.document.lineAt(lineNum).text;
-                const textHash = this.simpleHash(lineText);
-                this.tokenCache.delete(textHash.toString());
-            });
+        return uriPromise;
+    }
+
+    // ------------------------------ 缓存清理与偏移调整（核心优化） ------------------------------
+    /** 增量清理：仅清理变更行缓存（O(1)） */
+    clearLineCache(uri: vscode.Uri, lineNumbers: number[]): void {
+        const docCache = this.getDocCache(uri);
+        lineNumbers.forEach(line => {
+            docCache.metaCache.delete(line);
+            docCache.tokenCache.delete(line);
+            this.log(`清理行缓存：${uri.fsPath} -> 行${line}`);
         });
     }
 
-    provideDocumentLinks(
+    /** 行号偏移调整（O(k)，k为受影响行数量，远优于原O(n)） */
+    adjustLineOffsets(uri: vscode.Uri, changeEndLine: number, deltaLines: number): void {
+        if (deltaLines === 0) { return; }
+
+        const docCache = this.getDocCache(uri);
+        const affectedMeta: [number, LinkMetadata[]][] = [];
+        const affectedTokens: [number, TokenWithPosition[]][] = [];
+
+        // 收集所有受影响的行（大于变更结束行的行）
+        docCache.metaCache.forEach((meta, line) => {
+            if (line > changeEndLine) {
+                affectedMeta.push([line, meta]);
+            }
+        });
+        docCache.tokenCache.forEach((tokens, line) => {
+            if (line > changeEndLine) {
+                affectedTokens.push([line, tokens]);
+            }
+        });
+
+        // 移除旧行号缓存并添加新行号缓存
+        affectedMeta.forEach(([oldLine, meta]) => {
+            docCache.metaCache.delete(oldLine);
+            const newLine = oldLine + deltaLines;
+            docCache.metaCache.set(newLine, meta);
+        });
+        affectedTokens.forEach(([oldLine, tokens]) => {
+            docCache.tokenCache.delete(oldLine);
+            const newLine = oldLine + deltaLines;
+            docCache.tokenCache.set(newLine, tokens);
+        });
+
+        this.log(`行号偏移调整：${uri.fsPath} -> 行${changeEndLine}后偏移${deltaLines}行`);
+    }
+
+    /** 清理文档全量缓存（文档关闭/重命名时） */
+    clearDocumentCache(uri: vscode.Uri): void {
+        const docKey = this.getDocKey(uri);
+        this.docCaches.delete(docKey);
+        this.log(`清理文档全量缓存：${docKey}`);
+    }
+
+    /** 清理旧URI缓存（文档重命名/移动时） */
+    clearOldUriCache(oldUri: vscode.Uri): void {
+        this.clearDocumentCache(oldUri);
+    }
+
+    // ------------------------------ 日志工具（便于问题排查） ------------------------------
+    private log(message: string, error?: unknown): void {
+        if (LinkProvider.DEBUG_MODE) {
+            const prefix = '[LinkProvider Cache]';
+            if (error) {
+                console.error(`${prefix} ${message}`, error);
+            } else {
+                console.log(`${prefix} ${message}`);
+            }
+        }
+    }
+
+    /** 销毁缓存管理器（插件卸载时） */
+    dispose(): void {
+        if (this.cleanupTimer) {clearInterval(this.cleanupTimer);}
+        this.docCaches.clear();
+        this.pathUriCache.clear(); // 现在LRUCache有clear方法
+        this.log('缓存管理器已销毁');
+    }
+}
+
+/** Function命令策略 */
+class FunctionCommandStrategy implements CommandLinkStrategy {
+    command = 'function';
+    matchRegex = /(^|\s)function\b/i;
+
+    validate(tokens: string[], activeCommand: ActiveCommandInfo): boolean {
+        if (!tokens.length) {return false;}
+        return activeCommand.isExecute ? activeCommand.isComplete : tokens.length > this.getPathTokenIndex(0);
+    }
+
+    getPathTokenIndex(startTokenIndex: number): number {
+        return startTokenIndex + 1;
+    }
+
+    validatePath(path: string): boolean {
+        return /^[^ ]+$/.test(path);
+    }
+
+    async buildTargetUri(path: string): Promise<vscode.Uri | null> {
+        return MinecraftUtils.buildResourceUri(path, 'functions', '.mcfunction');
+    }
+
+    getTooltip(path: string): string {
+        const [ns, funcPath] = MinecraftUtils.parseResourcePath(path) || ['', path];
+        return `跳转到函数：${ns}/${funcPath}.mcfunction`;
+    }
+}
+
+/** Advancement命令策略 */
+class AdvancementCommandStrategy implements CommandLinkStrategy {
+    command = 'advancement';
+    matchRegex = /(^|\s)advancement\b/i;
+    private validActions = new Set(['grant', 'revoke', 'test']);
+
+    validate(tokens: string[], activeCommand: ActiveCommandInfo): boolean {
+        if (!tokens.length) {return false;}
+        if (activeCommand.isExecute && !activeCommand.isComplete) {return false;}
+        const pathIndex = this.getPathTokenIndex(0);
+        if (tokens.length <= pathIndex) {return false;}
+        const actionTokens = tokens.slice(1, pathIndex);
+        return actionTokens.some(action => this.validActions.has(action.toLowerCase()));
+    }
+
+    getPathTokenIndex(startTokenIndex: number): number {
+        return startTokenIndex + 4;
+    }
+
+    validatePath(path: string): boolean {
+        return /^[^:]+:[^ ]+$/.test(path);
+    }
+
+    async buildTargetUri(path: string): Promise<vscode.Uri | null> {
+        return MinecraftUtils.buildResourceUri(path, 'advancements', '.json');
+    }
+
+    getTooltip(path: string): string {
+        const [ns, advPath] = MinecraftUtils.parseResourcePath(path) || ['', path];
+        return `跳转到进度：${ns}/${advPath}.json`;
+    }
+}
+
+/** 文档链接提供器（单例+高性能+高稳定） */
+export class LinkProvider implements vscode.DocumentLinkProvider {
+    public static readonly DEBUG_MODE = false; // 调试模式开关（默认关闭，不影响性能）
+    private static instance: LinkProvider;
+    private commandStrategies: Map<string, CommandLinkStrategy> = new Map();
+    private cacheManager = new LinkCacheManager();
+    private static readonly SUPPORTED_LANGUAGES = new Set(['mcfunction']);
+    // 新增：存储当前激活文档的可视区域行号（实时更新）
+    private debounceTimer: NodeJS.Timeout | null = null;
+    public static readonly DEBOUNCE_DELAY = 100; // 缩短防抖时间（滚动停止后快速触发）
+
+    /** 记录每个文档已解析的行号（避免重复解析） */
+    private resolvedLines = new Map<string, Set<number>>();
+
+    private constructor() {
+        this.initStrategies();
+        this.initEventListeners();
+    }
+
+    public static getInstance(): LinkProvider {
+        if (!LinkProvider.instance) {
+            LinkProvider.instance = new LinkProvider();
+        }
+        return LinkProvider.instance;
+    }
+
+    private initStrategies(): void {
+        const strategies = [new FunctionCommandStrategy(), new AdvancementCommandStrategy()];
+        strategies.forEach(strategy => {
+            this.commandStrategies.set(strategy.command.toLowerCase(), strategy);
+        });
+    }
+
+    /** 初始化事件监听（新增滚动监听） */
+    private initEventListeners(): void {
+        // 1. 文本变更：增量清理缓存 + 行号偏移（增量更新核心）
+        vscode.workspace.onDidChangeTextDocument(event => {
+            if (!LinkProvider.SUPPORTED_LANGUAGES.has(event.document.languageId)) { return; }
+            const document = event.document;
+            const docKey = this.getDocKey(document.uri);
+            const resolvedLines = this.resolvedLines.get(docKey) || new Set();
+
+            event.contentChanges.forEach(change => {
+                const startLine = change.range.start.line;
+                const endLine = change.range.end.line;
+                const oldLineCount = endLine - startLine + 1;
+                const newLineCount = change.text.split(/\r?\n/).length;
+                const deltaLines = newLineCount - oldLineCount;
+
+                // 1. 清理所有受影响的行缓存（包括变更行及后续所有行）
+                const changedLines: number[] = [];
+                // 清理变更行本身
+                for (let i = startLine; i <= endLine; i++) {
+                    changedLines.push(i);
+                }
+                // 关键修复：如果是删除/添加行，后续所有行都可能受影响，必须清理缓存
+                if (deltaLines !== 0) {
+                    for (let i = endLine + 1; i < document.lineCount; i++) {
+                        changedLines.push(i);
+                    }
+                }
+                this.cacheManager.clearLineCache(document.uri, changedLines);
+                changedLines.forEach(line => resolvedLines.delete(line));
+
+                // 2. 调整行号偏移（覆盖所有后续行）
+                if (deltaLines !== 0) {
+                    this.cacheManager.adjustLineOffsets(document.uri, endLine, deltaLines);
+                    this.adjustResolvedLinesOffset(docKey, resolvedLines, endLine, deltaLines);
+                }
+
+                this.resolvedLines.set(docKey, resolvedLines);
+                if (LinkProvider.DEBUG_MODE) {
+                    console.log(`[LinkProvider] 文本变更：清理行${changedLines.join(',')}，偏移${deltaLines}行`);
+                }
+            });
+        });
+
+        // 2. 文档关闭：清理全量缓存（避免内存泄漏）
+        vscode.workspace.onDidCloseTextDocument(document => {
+            if (LinkProvider.SUPPORTED_LANGUAGES.has(document.languageId)) {
+                const docKey = this.getDocKey(document.uri);
+                this.cacheManager.clearDocumentCache(document.uri);
+                this.resolvedLines.delete(docKey);
+                if (LinkProvider.DEBUG_MODE) {
+                    console.log(`[LinkProvider] 文档关闭：清理缓存 ${docKey}`);
+                }
+            }
+        });
+
+        // 3. 文档重命名/移动：清理旧URI缓存
+        vscode.workspace.onDidRenameFiles(event => {
+            event.files.forEach(file => {
+                const fileExt = file.newUri.fsPath.split('.').pop() || '';
+                if (fileExt === 'mcfunction') {
+                    this.cacheManager.clearOldUriCache(file.oldUri);
+                    this.resolvedLines.delete(this.getDocKey(file.oldUri));
+                    if (LinkProvider.DEBUG_MODE) {
+                        console.log(`[LinkProvider] 文档重命名：清理旧URI ${file.oldUri.fsPath}`);
+                    }
+                }
+            });
+        });
+    }
+            
+    
+
+
+
+    /** 提供文档链接（优化：仅解析新增可视区域行） */
+    async provideDocumentLinks(
         document: vscode.TextDocument,
         token: vscode.CancellationToken
-    ): vscode.ProviderResult<vscode.DocumentLink[]> {
+    ): Promise<vscode.DocumentLink[]> {
+        // 过滤不支持的文档
+        if (!LinkProvider.SUPPORTED_LANGUAGES.has(document.languageId)) { return []; }
+        if (!vscode.workspace.workspaceFolders?.length) { return []; }
+        // 配置关闭链接则跳过
+        if (!DataLoader.getConfig()['file-link-provide']) { return []; }
+
         const links: vscode.DocumentLink[] = [];
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) { return links; }
+        const docKey = this.getDocKey(document.uri);
+        // 初始化“已解析行”集合（增量更新核心标记）
+        const resolvedLines = this.resolvedLines.get(docKey) || new Set<number>();
 
-        const uriStr = document.uri.toString();
-        const currentVersion = this.documentVersions.get(uriStr) || document.version;
+        if (LinkProvider.DEBUG_MODE) {
+            console.log(`[LinkProvider] 调用 provideDocumentLinks：文档${docKey}，已解析行${resolvedLines.size}行`);
+        }
 
-        // 逐行处理（优化点5：使用for循环而非forEach，减少函数调用开销）
+        // 遍历文档所有行（VS Code 会自动处理渲染，无需手动筛选可视区域）
         for (let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
-            if (token.isCancellationRequested) { break; }
+            if (token.isCancellationRequested) { break; } // 响应取消信号
 
-            const line = document.lineAt(lineNumber);
-            const cacheKey = this.generateCacheKey(document, lineNumber, line.text);
-
-            // 优先使用缓存
-            const cachedLinks = this.linkCache.get(cacheKey);
-            if (cachedLinks) {
+            // 增量逻辑：只处理“未解析”的行（避免重复解析）
+            if (resolvedLines.has(lineNumber)) {
+                // 已解析行：从缓存读取链接
+                const cachedLinks = await this.getCachedLinks(document, lineNumber);
                 links.push(...cachedLinks);
                 continue;
             }
 
-            // 处理行并缓存结果
-            const parsedLinks = this.processLine(document ,line.text, lineNumber,line);
-            this.linkCache.set(cacheKey, parsedLinks);
-            setTimeout(() => this.linkCache.delete(cacheKey), LinkProvider.CACHE_TTL);
-
-            links.push(...parsedLinks);
-        }
-
-        return links;
-    }
-
-    /** 生成缓存键（优化：使用更紧凑的哈希算法） */
-    private generateCacheKey(document: vscode.TextDocument, lineNumber: number, lineText: string): string {
-        const textHash = this.simpleHash(lineText);
-        return `${document.uri.toString()}:${lineNumber}:${textHash}:${document.version}`;
-    }
-
-    /** 优化哈希算法，减少碰撞概率同时提升计算速度 */
-    private simpleHash(str: string): number {
-        let hash = 5381; // 经典哈希种子
-        for (let i = 0; i < str.length; i++) {
-            hash = (hash << 5) + hash + str.charCodeAt(i); // 位运算提升速度
-        }
-        return hash >>> 0; // 转换为无符号整数
-    }
-
-    /** 处理单行文本（优化流程：提前短路+缓存复用） */
-    private processLine(
-        document: vscode.TextDocument,
-        lineText: string,
-        lineNumber: number,
-        line: vscode.TextLine,
-    ): vscode.DocumentLink[] {
-        const links: vscode.DocumentLink[] = [];
-        const trimmedLine = lineText.trim();
-
-        // 优化点6：提前过滤无效行（空行/注释行）
-        if (!trimmedLine || trimmedLine.startsWith('#')) {
-            return links;
-        }
-
-        // 去除行内注释
-        const commandText = trimmedLine.split(/#/)[0].trim();
-        if (!commandText) { return links; }
-
-        // 优化点7：使用预编译正则快速检查，减少正则创建开销
-        let hasSupportedCommand = false;
-        for (const [cmd, regex] of LinkProvider.COMMAND_REGEX_MAP) {
-            if (regex.test(commandText)) {
-                hasSupportedCommand = true;
-                break;
-            }
-        }
-        if (!hasSupportedCommand) {
-            return links;
-        }
-
-        // 优化点8：缓存令牌提取结果，避免重复解析
-        const textHash = this.simpleHash(commandText);
-        let tokens = this.tokenCache.get(textHash.toString());
-        if (!tokens) {
-            tokens = DocumentManager.getInstance().getCommandSegments(document, lineNumber);
-            this.tokenCache.set(textHash.toString(), tokens);
-            // 令牌缓存单独设置较短过期时间（避免内存占用过大）
-            setTimeout(() => this.tokenCache.delete(textHash.toString()), 4000);
-        }
-        if (tokens.length === 0) { return links; }
-
-        // 获取活跃命令
-        const activeCommandInfo = MainCompletionProvider.instance.findActiveCommand(tokens);
-        if (!activeCommandInfo) { return links; }
-
-        const command = activeCommandInfo.currentCommands[0]?.toLowerCase();
-        if (!command) { return links; }
-
-        // 跳过不完整的execute命令
-        if (activeCommandInfo.isExecute && !activeCommandInfo.isComplete) {
-            return links;
-        }
-
-        const config = LinkProvider.COMMAND_CONFIGS[command];
-        if (!config) { return links; }
-
-        // 查找命令起始索引
-        const startTokenIndex = this.findCommandStartIndex(tokens, activeCommandInfo.currentCommands);
-        if (startTokenIndex === -1) { return links; }
-
-        // 获取路径范围
-        const pathRange = this.getPathRange(commandText, command, config, startTokenIndex, tokens);
-        if (!pathRange) { return links; }
-
-        // 计算链接位置
-        const adjustedRange = new vscode.Range(
-            lineNumber,
-            line.firstNonWhitespaceCharacterIndex + pathRange.start,
-            lineNumber,
-            line.firstNonWhitespaceCharacterIndex + pathRange.end
-        );
-
-        // 优化点9：缓存路径解析结果，减少重复计算
-        const pathToken = commandText.substring(pathRange.start, pathRange.end);
-        let result = this.pathParseCache.get(pathToken);
-        if (result === undefined) {
-            result = MinecraftUtils.parseResourcePath(pathToken);
-            this.pathParseCache.set(pathToken, result);
-            // 路径解析缓存过期时间
-            setTimeout(() => this.pathParseCache.delete(pathToken), LinkProvider.CACHE_TTL);
-        }
-        if (!result) { return links; }
-
-        // 生成目标URI（复用解析结果）
-        const [nameSpace, path] = result;
-        const targetUri = MinecraftUtils.buildResourceUri(pathToken,config.folder, config.extension);
-        if (!targetUri) { return links; }
-        // 创建链接
-        const link = new vscode.DocumentLink(adjustedRange, targetUri);
-        link.tooltip = `跳转到 ${config.folder}/${nameSpace}/${path}${config.extension}`;
-        links.push(link);
-
-        return links;
-    }
-
-    /** 优化命令起始索引查找（减少循环次数） */
-    private findCommandStartIndex(originalTokens: string[], currentCommands: string[]): number {
-        if (currentCommands.length === 0) { return -1; }
-
-        const maxStartIndex = originalTokens.length - currentCommands.length;
-        if (maxStartIndex < 0) { return -1; }
-
-        // 限制循环范围，避免不必要的检查
-        for (let i = 0; i <= maxStartIndex; i++) {
-            if (originalTokens[i] !== currentCommands[0]) {
-                continue; // 第一个令牌不匹配，直接跳过
-            }
-
-            // 验证后续令牌
-            let match = true;
-            for (let j = 1; j < currentCommands.length; j++) {
-                if (originalTokens[i + j] !== currentCommands[j]) {
-                    match = false;
-                    break;
+            // 未解析行：解析并缓存
+            try {
+                const lineLinks = await this.parseUnresolvedLine(document, lineNumber, resolvedLines);
+                links.push(...lineLinks);
+                resolvedLines.add(lineNumber); // 标记为已解析
+                this.resolvedLines.set(docKey, resolvedLines);
+            } catch (err) {
+                if (LinkProvider.DEBUG_MODE) {
+                    console.error(`[LinkProvider] 解析行${lineNumber}失败`, err);
                 }
-            }
-            if (match) {
-                return i;
+                resolvedLines.add(lineNumber); // 失败也标记，避免重复报错
+                this.resolvedLines.set(docKey, resolvedLines);
             }
         }
-        return -1;
+
+        if (LinkProvider.DEBUG_MODE) {
+            console.log(`[LinkProvider] 本次返回链接数：${links.length}`);
+        }
+        return links;
     }
 
-    /** 获取路径参数范围（保持逻辑不变） */
-    private getPathRange(
-        commandText: string,
-        command: string,
-        config: CommandConfig,
-        startTokenIndex: number,
-        tokens: string[]
-    ): { start: number; end: number } | null {
-        const pathTokenIndex = startTokenIndex + config.pathIndex;
-        if (pathTokenIndex >= tokens.length) { return null; }
+    /** 辅助：从缓存读取已解析行的链接 */
+    private async getCachedLinks(document: vscode.TextDocument, lineNumber: number): Promise<vscode.DocumentLink[]> {
+        const cachedMeta = this.cacheManager.getMetaCache(document.uri, lineNumber);
+        if (!cachedMeta || cachedMeta.length === 0) { return []; }
 
+        const line = document.lineAt(lineNumber);
+        const indentOffset = line.firstNonWhitespaceCharacterIndex;
+        const links: vscode.DocumentLink[] = [];
+
+        for (const meta of cachedMeta) {
+            // 从缓存获取URI（避免重复构建）
+            const targetUri = await this.cacheManager.getPathUriCache(meta.path, meta.command);
+            if (!targetUri) { continue; }
+
+            // 计算正确的链接范围（确保不越界）
+            const startCol = Math.min(indentOffset + meta.tokenStart, line.text.length);
+            const endCol = Math.min(indentOffset + meta.tokenEnd, line.text.length);
+            const range = new vscode.Range(lineNumber, startCol, lineNumber, endCol);
+
+            // 生成最终链接
+            const link = new vscode.DocumentLink(range, targetUri);
+            link.tooltip = this.getStrategyByCommand(meta.command)?.getTooltip(meta.path) || '跳转到目标';
+            links.push(link);
+        }
+
+        return links;
+    }
+
+    /** 辅助：解析未解析行并生成链接 */
+    private async parseUnresolvedLine(
+        document: vscode.TextDocument,
+        lineNumber: number,
+        resolvedLines: Set<number>
+    ): Promise<vscode.DocumentLink[]> {
+        const line = document.lineAt(lineNumber);
+        const lineText = line.text;
+        const indentOffset = line.firstNonWhitespaceCharacterIndex;
+
+        // 跳过空行、注释行
+        if (indentOffset === -1 || lineText[indentOffset] === '#') {
+            return [];
+        }
+
+        // 提取命令文本（忽略字符串内的注释）
+        const commandText = this.extractCommandText(lineText);
+        if (!commandText) { return []; }
+
+        // 解析令牌并缓存
+        let tokens = this.cacheManager.getTokenCache(document.uri, lineNumber);
+        if (!tokens) {
+            tokens = this.parseTokensWithPosition(commandText);
+            this.cacheManager.setTokenCache(document.uri, lineNumber, tokens);
+        }
+        if (!tokens.length) { return []; }
+
+        // 匹配命令策略
+        const matchedStrategy = this.findMatchedStrategy(commandText, tokens);
+        if (!matchedStrategy) { return []; }
+
+        // 校验活跃命令
+        const activeCommand = this.getActiveCommandInfo(tokens.map(t => t.value));
+        if (!activeCommand || !matchedStrategy.validate(tokens.map(t => t.value), activeCommand)) {
+            return [];
+        }
+
+        // 定位路径令牌并校验
+        const commandStartIndex = this.findCommandStartIndex(tokens, matchedStrategy.command);
+        if (commandStartIndex === -1) { return []; }
+        const pathTokenIndex = matchedStrategy.getPathTokenIndex(commandStartIndex);
+        if (pathTokenIndex >= tokens.length) { return []; }
         const pathToken = tokens[pathTokenIndex];
-        if (config.paramValidator && !config.paramValidator.test(pathToken)) {
+        if (!matchedStrategy.validatePath(pathToken.value)) { return []; }
+
+        // 缓存元数据和URI
+        const meta: LinkMetadata = {
+            path: pathToken.value,
+            command: matchedStrategy.command,
+            tokenStart: pathToken.start,
+            tokenEnd: pathToken.end
+        };
+        this.cacheManager.setMetaCache(document.uri, lineNumber, [meta]);
+        await this.cacheManager.getPathUriCache(pathToken.value, matchedStrategy.command);
+
+        // 生成最终链接
+        const targetUri = await this.cacheManager.getPathUriCache(pathToken.value, matchedStrategy.command);
+        if (!targetUri) { return []; }
+
+        const startCol = indentOffset + pathToken.start;
+        const endCol = indentOffset + pathToken.end;
+        const range = new vscode.Range(lineNumber, startCol, lineNumber, endCol);
+        const link = new vscode.DocumentLink(range, targetUri);
+        link.tooltip = matchedStrategy.getTooltip(pathToken.value);
+
+        return [link];
+    }
+
+
+
+    /** 精准提取命令文本（忽略字符串内的#注释） */
+    private extractCommandText(lineText: string): string {
+        let inQuotes = false;
+        for (let i = 0; i < lineText.length; i++) {
+            if (lineText[i] === '"') {
+                inQuotes = !inQuotes;
+            } else if (lineText[i] === '#' && !inQuotes) {
+                return lineText.slice(0, i).trim();
+            }
+        }
+        return lineText.trim();
+    }
+
+    /** 解析令牌并记录原始位置（避免indexOf反查误差） */
+    private parseTokensWithPosition(commandText: string): TokenWithPosition[] {
+        const tokens: TokenWithPosition[] = [];
+        const regex = /(".*?"|\S+)/g; // 匹配带引号的字符串或非空字符
+        let match: RegExpExecArray | null;
+
+        while ((match = regex.exec(commandText)) !== null) {
+            const value = match[1].replace(/^"|"$/g, ''); // 去除引号
+            tokens.push({
+                value,
+                start: match.index,
+                end: match.index + match[1].length
+            });
+        }
+
+        return tokens;
+    }
+
+    /** 查找匹配的命令策略（优化查找效率） */
+    private findMatchedStrategy(commandText: string, tokens: TokenWithPosition[]): CommandLinkStrategy | undefined {
+        if (!tokens.length) {return undefined;}
+
+        // 优先匹配命令前缀（O(1)）
+        const firstToken = tokens[0].value.toLowerCase();
+        if (this.commandStrategies.has(firstToken)) {
+            return this.commandStrategies.get(firstToken);
+        }
+
+        // 正则匹配（仅当前缀不匹配时）
+        for (const strategy of this.commandStrategies.values()) {
+            if (strategy.matchRegex.test(commandText)) {
+                return strategy;
+            }
+        }
+
+        return undefined;
+    }
+
+    /** 获取活跃命令信息（增强异常捕获） */
+    private getActiveCommandInfo(tokens: string[]): ActiveCommandInfo | null {
+        try {
+            const activeCommand = MainCompletionProvider.instance?.findActiveCommand(tokens);
+            if (!activeCommand) {return null;}
+
+            return {
+                currentCommands: activeCommand.currentCommands || [],
+                isExecute: activeCommand.isExecute || false,
+                isComplete: activeCommand.isComplete || false
+            };
+        } catch (err) {
+            if (LinkProvider.DEBUG_MODE) {
+                console.error('获取活跃命令失败', err);
+            }
             return null;
         }
-
-        if (command === 'advancement' && config.validActions) {
-            const actionTokens = tokens.slice(startTokenIndex + 1, pathTokenIndex);
-            if (!actionTokens.some(t => config.validActions!.includes(t.toLowerCase()))) {
-                return null;
-            }
-        }
-
-        let currentPos = 0;
-        const tokenPositions: { start: number; end: number }[] = [];
-        for (const token of tokens) {
-            const tokenStart = commandText.indexOf(token, currentPos);
-            if (tokenStart === -1) { break; }
-            tokenPositions.push({ start: tokenStart, end: tokenStart + token.length });
-            currentPos = tokenStart + token.length + 1;
-        }
-
-        return tokenPositions[pathTokenIndex] || null;
     }
 
-    resolveDocumentLink?(link: vscode.DocumentLink): vscode.ProviderResult<vscode.DocumentLink> {
-        return link;
+    /** 查找命令在令牌数组中的起始索引 */
+    private findCommandStartIndex(tokens: TokenWithPosition[], command: string): number {
+        const lowerCommand = command.toLowerCase();
+        return tokens.findIndex(token => token.value.toLowerCase() === lowerCommand);
     }
 
-    /** 清理指定文档的缓存（按需清理，而非全量） */
-    private clearCache(documentUri: vscode.Uri): void {
-        const uriStr = documentUri.toString();
-        const prefix = `${uriStr}:`;
+    /** 根据命令名获取策略 */
+    public getStrategyByCommand(command: string): CommandLinkStrategy | undefined {
+        return this.commandStrategies.get(command.toLowerCase());
+    }
 
-        // 只清理当前文档的缓存项
-        this.linkCache.forEach((_, key) => {
-            if (key.startsWith(prefix)) {
-                this.linkCache.delete(key);
+    /** 生成文档键（复用缓存管理器的逻辑） */
+    private getDocKey(uri: vscode.Uri): string {
+        return uri.fsPath;
+    }
+
+    /** 调整已解析行号偏移（同步缓存行号变化） */
+    private adjustResolvedLinesOffset(
+        docKey: string,
+        resolvedLines: Set<number>,
+        changeEndLine: number,
+        deltaLines: number
+    ): void {
+        if (deltaLines === 0) {return;}
+
+        const affectedLines = Array.from(resolvedLines).filter(line => line > changeEndLine);
+        affectedLines.forEach(line => resolvedLines.delete(line));
+        affectedLines.forEach(line => resolvedLines.add(line + deltaLines));
+        this.resolvedLines.set(docKey, resolvedLines);
+    }
+
+    /** 销毁提供器（插件卸载时） */
+    public dispose(): void {
+        this.cacheManager.dispose();
+        this.resolvedLines.clear();
+        if (this.debounceTimer) {clearTimeout(this.debounceTimer);}
+    }
+}
+/** LRU缓存工具类（保障缓存不膨胀，修复clear方法和类型问题） */
+export class LRUCache<K, V> {
+    private cache = new Map<K, V>();
+    private maxSize: number;
+
+    constructor(maxSize: number) {
+        this.maxSize = maxSize;
+    }
+
+    get(key: K): V | undefined {
+        const value = this.cache.get(key);
+        if (value) {
+            // 访问后移到队尾（标记为最近使用）
+            this.cache.delete(key);
+            this.cache.set(key, value);
+        }
+        return value;
+    }
+
+    set(key: K, value: V): void {
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+            // 修复：添加类型校验，避免undefined赋值给K
+            const oldestKeyResult = this.cache.keys().next();
+            if (!oldestKeyResult.done) {
+                const oldestKey = oldestKeyResult.value;
+                this.cache.delete(oldestKey);
             }
-        });
+        }
+        this.cache.set(key, value);
+    }
+
+    delete(key: K): void {
+        this.cache.delete(key);
+    }
+
+    forEach(callback: (value: V, key: K) => void): void {
+        this.cache.forEach(callback);
+    }
+
+    get size(): number {
+        return this.cache.size;
+    }
+
+    // 修复：添加clear方法
+    clear(): void {
+        this.cache.clear();
     }
 }

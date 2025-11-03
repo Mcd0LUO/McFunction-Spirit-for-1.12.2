@@ -45,7 +45,6 @@ export class AdvancementHelper {
         const text = document.getText();
         const offset = document.offsetAt(position);
         const path = jsonc.getLocation(text, offset).path;
-        console.log(document);
         // 检查是否在 criteria.xxx.conditions 内部
         if (!this.isInConditionsContext(path)) {
             return [];
