@@ -4,6 +4,10 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/i/Mcd0-LUO.mcfunction-spirit.svg?logo=visual-studio-code&style=flat-square)](https://marketplace.visualstudio.com/items?itemName=Mcd0-LUO.mcfunction-spirit)
 
 
+该扩展已停止维护，敬请期待新的扩展！！！
+该扩展已停止维护，敬请期待新的扩展！！！
+该扩展已停止维护，敬请期待新的扩展！！！
+
 
 ## 特征
 

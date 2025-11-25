@@ -9,7 +9,7 @@ export class EntitydataCompletionProvider extends MinecraftCommandCompletionProv
 
     switch (commands.length) {
             case 2:
-                return this.createSelectorArgumentsCompletion(commands[1]);
+                return this.createSelectorArgumentsCompletion(commands[1], true);
             case 3:
                 if (commands[2].startsWith("{")) {
                     return NBTUtils.provideEntityNBTCompletions(this.createCompletionItem);

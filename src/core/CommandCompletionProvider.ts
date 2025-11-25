@@ -476,7 +476,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
                     arg.label,
                     arg.detail,
                     `${arg.insertText}`,
-                    triggerNext,
+                    true,
                     vscode.CompletionItemKind.Enum
                 )
             );
@@ -490,7 +490,7 @@ export abstract class MinecraftCommandCompletionProvider implements vscode.Compl
                     `_${name}`,
                     `类型: ${data[0]} 注释: ${data[1]}`,
                     `score_${name}`,
-                    triggerNext,
+                    true,
                     vscode.CompletionItemKind.Enum
                 )
             );

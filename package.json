@@ -4,7 +4,7 @@
   "displayName": "McFunction Spirit for 1.12.2",
   "description": "A simple Minecraft 1.12.2 function development tool that provides features such as syntax completion and function management.",
   "repository": "https://github.com/Mcd0LUO/McFunction-Spirit-for-1.12.2",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "icon": "icons/main_icon.png",
   "publisher": "Mcd0-LUO",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "Programming Languages",
     "Snippets"
   ],
+  "deprecated": "⚠️ 该扩展已停止维护 敬请期待新的扩展发布",
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
